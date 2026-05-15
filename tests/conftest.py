@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import UTC, datetime, timedelta
 from collections.abc import Generator
 
 import pytest
@@ -42,6 +43,66 @@ def cleanup_weights(tink_api: TinkApi) -> Generator[list[int], None, None]:
 
 
 @pytest.fixture
+def cleanup_haircuts(tink_api: TinkApi) -> Generator[list[int], None, None]:
+    haircut_ids: list[int] = []
+    yield haircut_ids
+    for haircut_id in reversed(haircut_ids):
+        response = tink_api.delete(f"/haircut/{haircut_id}")
+        if response.status_code not in {204, 404}:
+            raise AssertionError(
+                f"Failed to clean up haircut {haircut_id}: HTTP {response.status_code} {response.text}"
+            )
+
+
+@pytest.fixture
+def cleanup_books(tink_api: TinkApi) -> Generator[list[int], None, None]:
+    book_ids: list[int] = []
+    yield book_ids
+    for book_id in reversed(book_ids):
+        response = tink_api.delete(f"/book/{book_id}")
+        if response.status_code not in {204, 404}:
+            raise AssertionError(
+                f"Failed to clean up book {book_id}: HTTP {response.status_code} {response.text}"
+            )
+
+
+@pytest.fixture
+def cleanup_stories(tink_api: TinkApi) -> Generator[list[str], None, None]:
+    story_ids: list[str] = []
+    yield story_ids
+    for story_id in reversed(story_ids):
+        response = tink_api.delete(f"/story/{story_id}")
+        if response.status_code not in {204, 404}:
+            raise AssertionError(
+                f"Failed to clean up story {story_id}: HTTP {response.status_code} {response.text}"
+            )
+
+
+@pytest.fixture
+def cleanup_times(tink_api: TinkApi) -> Generator[list[int], None, None]:
+    time_ids: list[int] = []
+    yield time_ids
+    for time_id in reversed(time_ids):
+        response = tink_api.delete(f"/time/{time_id}")
+        if response.status_code not in {204, 404, 502}:
+            raise AssertionError(
+                f"Failed to clean up time entry {time_id}: HTTP {response.status_code} {response.text}"
+            )
+
+
+@pytest.fixture
 def generated_weight() -> float:
     suffix = int(time.time() * 1000) % 1000
     return round(70 + (suffix / 1000), 3)
+
+
+@pytest.fixture
+def unique_suffix() -> str:
+    return str(int(time.time() * 1000))
+
+
+@pytest.fixture
+def future_time_window() -> tuple[str, str]:
+    start = datetime.now(UTC).replace(microsecond=0) + timedelta(days=14)
+    end = start + timedelta(minutes=30)
+    return start.isoformat(), end.isoformat()

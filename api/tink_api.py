@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlencode
 
 import requests
 
@@ -29,17 +30,35 @@ class TinkApi:
         self.assert_status(response, 200)
 
     def create_weight(self, weight: float) -> requests.Response:
-        return requests.post(
-            self._url("/weight"),
-            json={"weight": weight},
-            timeout=self.timeout,
-        )
+        return self.post("/weight", {"weight": weight})
 
     def get_weights(self) -> requests.Response:
-        return requests.get(self._url("/weight"), timeout=self.timeout)
+        return self.get("/weight")
 
     def delete_weight(self, weight_id: int) -> requests.Response:
-        return requests.delete(self._url(f"/weight/{weight_id}"), timeout=self.timeout)
+        return self.delete(f"/weight/{weight_id}")
+
+    def get_root(self) -> requests.Response:
+        if self.base_url.endswith("/dev"):
+            root_url = self.base_url.removesuffix("/dev")
+        else:
+            root_url = self.base_url
+        return requests.get(f"{root_url}/", timeout=self.timeout)
+
+    def get(self, path: str, params: dict[str, Any] | None = None) -> requests.Response:
+        return requests.get(self._url(path, params), timeout=self.timeout)
+
+    def post(self, path: str, payload: Any) -> requests.Response:
+        return requests.post(self._url(path), json=payload, timeout=self.timeout)
+
+    def put(self, path: str, payload: Any) -> requests.Response:
+        return requests.put(self._url(path), json=payload, timeout=self.timeout)
+
+    def patch(self, path: str, payload: Any) -> requests.Response:
+        return requests.patch(self._url(path), json=payload, timeout=self.timeout)
+
+    def delete(self, path: str) -> requests.Response:
+        return requests.delete(self._url(path), timeout=self.timeout)
 
     @staticmethod
     def assert_status(response: requests.Response, *expected_statuses: int) -> None:
@@ -56,5 +75,8 @@ class TinkApi:
         except ValueError as exc:
             raise TinkApiError(f"Response was not valid JSON: {response.text}") from exc
 
-    def _url(self, path: str) -> str:
-        return f"{self.base_url}/{path.lstrip('/')}"
+    def _url(self, path: str, params: dict[str, Any] | None = None) -> str:
+        url = f"{self.base_url}/{path.lstrip('/')}"
+        if params:
+            return f"{url}?{urlencode(params)}"
+        return url

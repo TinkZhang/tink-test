@@ -24,6 +24,19 @@ Override the target API:
 TINK_API_BASE_URL=http://localhost:8000/dev uv run pytest --bdd-report=reports/bdd-report.html
 ```
 
+Current API coverage:
+
+- Root health endpoint
+- Weight CRUD
+- Haircut CRUD
+- Zi upsert and read
+- Story create, list, read, delete
+- Book lifecycle and notes
+- Time create, update, list, statistics, delete
+- Merriam statistics
+
+The story generation endpoint and Merriam write endpoint are intentionally not covered yet because they trigger external AI/calendar side effects and do not provide a clean black-box cleanup path.
+
 ## Structure
 
 - `features/`: `.feature` files only.
