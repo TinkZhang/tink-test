@@ -1,0 +1,18 @@
+[project]
+name = "tink-test"
+version = "0.1.0"
+description = "Black-box E2E tests for Tink clients and APIs"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pytest>=9.0.2",
+    "pytest-bdd>=8.1.0",
+    "pytest-bdd-report>=1.2.2",
+    "requests>=2.32.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+bdd_features_base_dir = "features"
+pythonpath = ["."]
+addopts = "-ra"
