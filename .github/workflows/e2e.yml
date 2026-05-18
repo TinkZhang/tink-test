@@ -52,6 +52,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         uses: actions/deploy-pages@v4
       - name: Fail if tests failed
         if: always() && steps.pytest.outputs.status != '0'
