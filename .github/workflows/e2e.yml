@@ -6,11 +6,19 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   api:
     runs-on: ubuntu-latest
     env:
       TINK_API_BASE_URL: https://api.tinks.app/dev
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -21,10 +29,30 @@ jobs:
           python-version-file: .python-version
       - run: uv sync
       - run: mkdir -p reports
-      - run: uv run pytest --bdd-report=reports/bdd-report.html
+      - name: Run API E2E tests
+        id: pytest
+        shell: bash
+        run: |
+          set +e
+          uv run pytest --bdd-report=reports/bdd-report.html
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bdd-report
           path: reports/bdd-report.html
           if-no-files-found: ignore
+      - name: Upload Pages artifact
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports
+      - name: Deploy to GitHub Pages
+        id: deployment
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/deploy-pages@v4
+      - name: Fail if tests failed
+        if: always() && steps.pytest.outputs.status != '0'
+        run: exit ${{ steps.pytest.outputs.status }}
