@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from appium.webdriver.common.appiumby import AppiumBy
@@ -44,22 +45,23 @@ class WeightPage:
             self.driver.back()
 
     def add_weight_by_drag(self) -> float:
-        before = self.current_weight_value()
         drag_area = self.find_by_test_tag("weight_drag_area")
         rect = drag_area.rect
         start_x = rect["x"] + rect["width"] // 2
         start_y = rect["y"] + int(rect["height"] * 0.75)
         end_y = rect["y"] + int(rect["height"] * 0.2)
         self.driver.swipe(start_x, start_y, start_x, end_y, 700)
-        self.tap_first(
+        button = self.find_first_present(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/weight_add_record_button"),
                 (AppiumBy.ID, "weight_add_record_button"),
                 (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("添加新记录")'),
             ]
         )
-        self.wait_until_weight_changes(before)
-        return self.current_weight_value()
+        added_weight = self._parse_first_float(button.text)
+        button.click()
+        self.wait_for_text(f"{added_weight:.1f} 斤")
+        return added_weight
 
     def current_weight_value(self) -> float:
         element = self.find_by_test_tag("weight_current_value")
@@ -73,11 +75,12 @@ class WeightPage:
 
     def assert_history_does_not_contain_weight(self, weight: float) -> None:
         text = f"{weight:.1f} 斤"
-        elements = self.driver.find_elements(
-            AppiumBy.ANDROID_UIAUTOMATOR,
-            f'new UiSelector().text("{text}")',
+        self.wait.until(
+            lambda _: not self.driver.find_elements(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                f'new UiSelector().text("{text}")',
+            )
         )
-        assert not elements, f"Did not expect weight {text} to be visible"
 
     def assert_api_failure_visible(self) -> None:
         self.wait_for_text("Request failed")
@@ -115,14 +118,15 @@ class WeightPage:
         self.wait.until(lambda _: abs(self.current_weight_value() - previous) >= 0.05)
 
     def find_by_test_tag(self, tag: str) -> WebElement:
-        return self.wait.until(
-            lambda _: self._find_first_present(
-                [
-                    (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
-                    (AppiumBy.ID, tag),
-                ]
-            )
+        return self.find_first_present(
+            [
+                (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
+                (AppiumBy.ID, tag),
+            ]
         )
+
+    def find_first_present(self, locators: Iterable[tuple[str, str]]) -> WebElement:
+        return self.wait.until(lambda _: self._find_first_present(locators))
 
     def tap_accessibility(self, label: str) -> None:
         self.wait.until(EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, label))).click()
@@ -144,3 +148,9 @@ class WeightPage:
             except NoSuchElementException:
                 continue
         return False
+
+    def _parse_first_float(self, text: str) -> float:
+        match = re.search(r"\d+(?:\.\d+)?", text)
+        if not match:
+            raise AssertionError(f"Unable to parse weight from text: {text}")
+        return float(match.group())

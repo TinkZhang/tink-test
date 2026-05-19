@@ -36,7 +36,7 @@ def weight_page(android_driver) -> WeightPage:
 @pytest.fixture
 def weight_mock_server() -> Generator[WeightMockServer, None, None]:
     fixture_path = Path("fixtures/android/weight/empty.json")
-    server = WeightMockServer(fixture_path=fixture_path)
+    server = WeightMockServer(fixture_path=fixture_path, host="0.0.0.0")
     server.start()
     try:
         yield server
