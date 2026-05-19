@@ -15,13 +15,13 @@ https://api.tinks.app/dev
 Run the tests:
 
 ```sh
-uv run pytest --bdd-report=reports/bdd-report.html
+uv run pytest tests/api --bdd-report=reports/api/bdd-report.html
 ```
 
 Override the target API:
 
 ```sh
-TINK_API_BASE_URL=http://localhost:8000/dev uv run pytest --bdd-report=reports/bdd-report.html
+TINK_API_BASE_URL=http://localhost:8000/dev uv run pytest tests/api --bdd-report=reports/api/bdd-report.html
 ```
 
 Current API coverage:
@@ -37,8 +37,38 @@ Current API coverage:
 
 The story generation endpoint and Merriam write endpoint are intentionally not covered yet because they trigger external AI/calendar side effects and do not provide a clean black-box cleanup path.
 
+## Android Appium BDD Tests
+
+Android Appium tests are black-box tests for the Android app. They are skipped unless `TINK_RUN_APPIUM=1` is set.
+
+Two layers are available:
+
+- E2E: the app talks to `https://api.tinks.app/dev`, while tests use the API client for setup and cleanup.
+- Mock: the app talks to a local mock server built from JSON fixtures under `fixtures/android/weight`.
+
+Run E2E tests after building or providing a debug APK:
+
+```sh
+TINK_RUN_APPIUM=1 \
+TINK_ANDROID_APK_PATH=/path/to/app-debug.apk \
+uv run pytest tests/android -m "android and e2e" --bdd-report=reports/android/e2e/bdd-report.html
+```
+
+Run mock tests with an APK built using `TINK_API_BASE_URL=http://10.0.2.2:8765/`:
+
+```sh
+TINK_RUN_APPIUM=1 \
+TINK_ANDROID_APK_PATH=/path/to/app-mock-debug.apk \
+uv run pytest tests/android -m "android and mock" --bdd-report=reports/android/mock/bdd-report.html
+```
+
+GitHub Actions builds both APK variants, runs Appium with the UiAutomator2 driver on an Android emulator, uploads artifacts, and publishes API/Android report links to GitHub Pages.
+
 ## Structure
 
 - `features/`: `.feature` files only.
 - `tests/`: pytest-bdd step bindings and test files named `test_*.py`.
 - `api/`: reusable black-box API clients built on `requests`.
+- `appium_client/`: Appium driver setup and Android page objects.
+- `mock_server/`: local mock HTTP servers for app black-box tests.
+- `fixtures/`: JSON fixture data for mock tests.

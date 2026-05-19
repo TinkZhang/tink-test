@@ -5,6 +5,7 @@ description = "Black-box E2E tests for Tink clients and APIs"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "appium-python-client>=5.2.0",
     "pytest>=9.0.2",
     "pytest-bdd>=8.1.0",
     "pytest-bdd-report>=1.2.2",
@@ -16,3 +17,9 @@ testpaths = ["tests"]
 bdd_features_base_dir = "features"
 pythonpath = ["."]
 addopts = "-ra"
+markers = [
+    "android: Android Appium black-box tests",
+    "e2e: tests that use the deployed development API",
+    "mock: tests that use the local mock API server",
+    "smoke: small PR-safe subset of Android Appium tests",
+]

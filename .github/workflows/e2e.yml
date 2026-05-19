@@ -5,6 +5,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      android_ref:
+        description: Tink-Super-App branch, tag, or SHA to test
+        required: false
+        default: main
 
 permissions:
   contents: read
@@ -16,9 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TINK_API_BASE_URL: https://api.tinks.app/dev
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -28,25 +31,200 @@ jobs:
         with:
           python-version-file: .python-version
       - run: uv sync
-      - run: mkdir -p reports
+      - run: mkdir -p reports/api
       - name: Run API E2E tests
         id: pytest
         shell: bash
         run: |
           set +e
-          uv run pytest --bdd-report=reports/bdd-report.html
+          uv run pytest tests/api --bdd-report=reports/api/bdd-report.html
           status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Prepare Pages index
+      - name: Prepare API report
         if: always()
-        run: cp reports/bdd-report.html reports/index.html
-      - uses: actions/upload-artifact@v4
+        run: |
+          if [ -f reports/api/bdd-report.html ]; then
+            cp reports/api/bdd-report.html reports/api/index.html
+          else
+            cat > reports/api/index.html <<'HTML'
+          <!doctype html><html><body><h1>API E2E report was not generated.</h1></body></html>
+          HTML
+          fi
+      - name: Upload API report
         if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: bdd-report
-          path: reports/bdd-report.html
+          name: api-report-site
+          path: reports/api
+          if-no-files-found: warn
+      - name: Fail if API tests failed
+        if: always() && steps.pytest.outputs.status != '0'
+        run: exit ${{ steps.pytest.outputs.status }}
+
+  android-appium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TINK_API_BASE_URL: https://api.tinks.app/dev
+      TINK_RUN_APPIUM: "1"
+      TINK_ANDROID_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.android_ref || 'main' }}
+    steps:
+      - name: Checkout tink-test
+        uses: actions/checkout@v4
+      - name: Checkout Tink-Super-App
+        uses: actions/checkout@v4
+        with:
+          repository: TinkZhang/Tink-Super-App
+          ref: ${{ env.TINK_ANDROID_REF }}
+          path: android-app
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: uv sync
+      - name: Install Appium
+        run: |
+          npm install -g appium
+          appium driver install uiautomator2
+      - name: Build Android debug APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd android-app
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../app-e2e-debug.apk
+
+          TINK_API_BASE_URL=http://10.0.2.2:8765/ ./gradlew clean assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../app-mock-debug.apk
+      - run: mkdir -p reports/android/e2e reports/android/mock
+      - name: Run Android Appium BDD tests
+        id: appium
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            set +e
+
+            appium --log-level error > appium.log 2>&1 &
+            for i in $(seq 1 30); do
+              curl -fsS http://127.0.0.1:4723/status >/dev/null 2>&1 && break
+              sleep 2
+            done
+
+            selector="android"
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              selector="android and smoke"
+            fi
+
+            TINK_ANDROID_APK_PATH="$PWD/app-e2e-debug.apk" \
+              uv run pytest tests/android -m "$selector and e2e" \
+                --bdd-report=reports/android/e2e/bdd-report.html
+            e2e_status=$?
+
+            TINK_ANDROID_APK_PATH="$PWD/app-mock-debug.apk" \
+              uv run pytest tests/android -m "$selector and mock" \
+                --bdd-report=reports/android/mock/bdd-report.html
+            mock_status=$?
+
+            {
+              echo "e2e_status=$e2e_status"
+              echo "mock_status=$mock_status"
+            } >> "$GITHUB_OUTPUT"
+
+            exit 0
+      - name: Prepare Android reports
+        if: always()
+        shell: bash
+        run: |
+          for suite in e2e mock; do
+            if [ -f "reports/android/$suite/bdd-report.html" ]; then
+              cp "reports/android/$suite/bdd-report.html" "reports/android/$suite/index.html"
+            else
+              cat > "reports/android/$suite/index.html" <<HTML
+          <!doctype html><html><body><h1>Android $suite report was not generated.</h1></body></html>
+          HTML
+            fi
+          done
+      - name: Upload Android reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-report-site
+          path: reports/android
+          if-no-files-found: warn
+      - name: Upload Appium log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appium-log
+          path: appium.log
           if-no-files-found: ignore
+      - name: Fail if Android tests failed
+        if: always() && (steps.appium.outputs.e2e_status != '0' || steps.appium.outputs.mock_status != '0')
+        run: exit 1
+
+  pages:
+    runs-on: ubuntu-latest
+    needs:
+      - api
+      - android-appium
+    if: always()
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download reports
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-reports
+      - name: Build report site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/api reports/android
+          if [ -d downloaded-reports/api-report-site ]; then
+            cp -R downloaded-reports/api-report-site/. reports/api/
+          fi
+          if [ -d downloaded-reports/android-report-site ]; then
+            cp -R downloaded-reports/android-report-site/. reports/android/
+          fi
+
+          cat > reports/index.html <<'HTML'
+          <!doctype html>
+          <html>
+            <head><meta charset="utf-8"><title>Tink Test Reports</title></head>
+            <body>
+              <h1>Tink Test Reports</h1>
+              <ul>
+                <li><a href="api/index.html">API BDD report</a></li>
+                <li><a href="android/e2e/index.html">Android Appium E2E BDD report</a></li>
+                <li><a href="android/mock/index.html">Android Appium Mock BDD report</a></li>
+              </ul>
+            </body>
+          </html>
+          HTML
+      - name: Upload combined reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-reports
+          path: reports
+          if-no-files-found: warn
       - name: Upload Pages artifact
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
@@ -57,6 +235,6 @@ jobs:
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         uses: actions/deploy-pages@v4
-      - name: Fail if tests failed
-        if: always() && steps.pytest.outputs.status != '0'
-        run: exit ${{ steps.pytest.outputs.status }}
+      - name: Fail if upstream tests failed
+        if: always() && (needs.api.result != 'success' || needs.android-appium.result != 'success')
+        run: exit 1
