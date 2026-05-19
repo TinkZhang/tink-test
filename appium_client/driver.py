@@ -29,6 +29,10 @@ def create_android_driver() -> webdriver.Remote:
         "autoGrantPermissions": True,
         "noReset": False,
         "fullReset": False,
+        "adbExecTimeout": 120000,
+        "androidInstallTimeout": 120000,
+        "uiautomator2ServerInstallTimeout": 120000,
+        "uiautomator2ServerLaunchTimeout": 120000,
         "newCommandTimeout": 120,
     }
     server_url = os.environ.get("APPIUM_SERVER_URL", "http://127.0.0.1:4723")
