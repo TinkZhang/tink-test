@@ -63,7 +63,7 @@ jobs:
         run: exit ${{ steps.pytest.outputs.status }}
 
   android-appium:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 45
     env:
       TINK_API_BASE_URL: https://api.tinks.app/dev
