@@ -54,15 +54,21 @@ TINK_ANDROID_APK_PATH=/path/to/app-debug.apk \
 uv run pytest tests/android -m "android and e2e" --bdd-report=reports/android/e2e/bdd-report.html
 ```
 
-Run mock tests with an APK built using `TINK_API_BASE_URL=http://10.0.2.2:8765/`:
+Run mock tests with the same debug APK. The Appium runner sets the debug-only API override to `http://10.0.2.2:8765/` before launching the app:
 
 ```sh
 TINK_RUN_APPIUM=1 \
-TINK_ANDROID_APK_PATH=/path/to/app-mock-debug.apk \
+TINK_ANDROID_APK_PATH=/path/to/app-debug.apk \
+TINK_ANDROID_API_BASE_URL_OVERRIDE=http://10.0.2.2:8765/ \
 uv run pytest tests/android -m "android and mock" --bdd-report=reports/android/mock/bdd-report.html
 ```
 
-GitHub Actions builds both APK variants, runs Appium with the UiAutomator2 driver on an Android emulator, uploads artifacts, and publishes API/Android report links to GitHub Pages.
+`Tink-Super-App` owns APK builds in CI and dispatches this repository with the Android workflow run id. GitHub Actions downloads the published `tink-android-debug-apk` artifact, runs Appium with the UiAutomator2 driver on an Android emulator, uploads artifacts, and publishes API/Android report links to GitHub Pages.
+
+Required GitHub secrets:
+
+- `Tink-Super-App`: `TINK_TEST_DISPATCH_TOKEN` can dispatch events to `TinkZhang/tink-test`.
+- `tink-test`: `TINK_ANDROID_ARTIFACT_TOKEN` can read Android workflow artifacts from `TinkZhang/Tink-Super-App`.
 
 ## Structure
 

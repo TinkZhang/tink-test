@@ -71,6 +71,17 @@ if [ "$install_status" != "0" ]; then
   exit 0
 fi
 
+if [ -n "${TINK_ANDROID_API_BASE_URL_OVERRIDE:-}" ]; then
+  adb shell am broadcast \
+    -n app.tinks.tink/.debug.ApiBaseUrlOverrideReceiver \
+    -a app.tinks.tink.debug.SET_API_BASE_URL \
+    --es base_url "$TINK_ANDROID_API_BASE_URL_OVERRIDE" >/dev/null
+else
+  adb shell am broadcast \
+    -n app.tinks.tink/.debug.ApiBaseUrlOverrideReceiver \
+    -a app.tinks.tink.debug.CLEAR_API_BASE_URL >/dev/null
+fi
+
 adb shell am force-stop app.tinks.tink >/dev/null 2>&1 || true
 
 selector="android and $suite"

@@ -5,12 +5,19 @@ on:
   push:
     branches:
       - main
+  repository_dispatch:
+    types:
+      - android-apk-ready
   workflow_dispatch:
     inputs:
-      android_ref:
-        description: Tink-Super-App branch, tag, or SHA to test
+      android_run_id:
+        description: Tink-Super-App workflow run id containing the APK artifact
         required: false
-        default: main
+        default: ""
+      android_artifact_name:
+        description: Tink-Super-App APK artifact name
+        required: false
+        default: tink-android-debug-apk
 
 permissions:
   contents: read
@@ -63,6 +70,7 @@ jobs:
         run: exit ${{ steps.pytest.outputs.status }}
 
   android-appium:
+    if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.android_run_id != '')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -72,29 +80,39 @@ jobs:
           - e2e
           - mock
     env:
-      TINK_API_BASE_URL: https://api.tinks.app/dev
       TINK_RUN_APPIUM: "1"
-      TINK_ANDROID_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.android_ref || 'main' }}
+      TINK_ANDROID_RUN_ID: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.android_run_id || inputs.android_run_id }}
+      TINK_ANDROID_ARTIFACT_NAME: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.artifact_name || inputs.android_artifact_name }}
       TINK_ANDROID_SUITE: ${{ matrix.suite }}
     steps:
       - name: Checkout tink-test
         uses: actions/checkout@v4
-      - name: Checkout Tink-Super-App
-        uses: actions/checkout@v4
+      - name: Download Android debug APK
+        uses: actions/download-artifact@v4
         with:
           repository: TinkZhang/Tink-Super-App
-          ref: ${{ env.TINK_ANDROID_REF }}
-          path: android-app
+          run-id: ${{ env.TINK_ANDROID_RUN_ID }}
+          name: ${{ env.TINK_ANDROID_ARTIFACT_NAME }}
+          path: android-apk
+          github-token: ${{ secrets.TINK_ANDROID_ARTIFACT_TOKEN || github.token }}
+      - name: Locate Android debug APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_path="$(find android-apk -type f -name '*.apk' | head -n 1)"
+          if [ -z "$apk_path" ]; then
+            echo "No APK found in downloaded artifact"
+            find android-apk -maxdepth 5 -type f
+            exit 1
+          fi
+          echo "path=${GITHUB_WORKSPACE}/${apk_path}" >> "$GITHUB_OUTPUT"
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -115,19 +133,6 @@ jobs:
           else
             echo "/dev/kvm is not available on this runner"
           fi
-      - name: Build Android debug APKs
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd android-app
-          if [ "${TINK_ANDROID_SUITE}" = "mock" ]; then
-            TINK_API_BASE_URL=http://10.0.2.2:8765/ ./gradlew assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk ../app-mock-debug.apk
-          else
-            TINK_API_BASE_URL=https://api.tinks.app/ ./gradlew assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk ../app-e2e-debug.apk
-          fi
       - run: mkdir -p "reports/android/${TINK_ANDROID_SUITE}"
       - name: Run Android Appium BDD tests
         id: appium
@@ -135,7 +140,8 @@ jobs:
         timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@v2
         env:
-          TINK_ANDROID_APK_PATH: ${{ github.workspace }}/app-${{ matrix.suite }}-debug.apk
+          TINK_ANDROID_APK_PATH: ${{ steps.apk.outputs.path }}
+          TINK_ANDROID_API_BASE_URL_OVERRIDE: ${{ matrix.suite == 'mock' && 'http://10.0.2.2:8765/' || '' }}
         with:
           api-level: 35
           target: google_apis
@@ -238,15 +244,23 @@ jobs:
           path: reports
           if-no-files-found: warn
       - name: Upload Pages artifact
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: >-
+          always() &&
+          ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          github.event_name == 'repository_dispatch' ||
+          github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@v3
         with:
           path: reports
       - name: Deploy to GitHub Pages
         id: deployment
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: >-
+          always() &&
+          ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          github.event_name == 'repository_dispatch' ||
+          github.event_name == 'workflow_dispatch')
         continue-on-error: true
         uses: actions/deploy-pages@v4
       - name: Fail if upstream tests failed
-        if: always() && (needs.api.result != 'success' || needs.android-appium.result != 'success')
+        if: always() && (needs.api.result != 'success' || (needs.android-appium.result != 'success' && needs.android-appium.result != 'skipped'))
         run: exit 1
