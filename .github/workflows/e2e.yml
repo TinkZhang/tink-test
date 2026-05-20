@@ -109,8 +109,9 @@ jobs:
         run: |
           if [ -e /dev/kvm ]; then
             sudo adduser "$USER" kvm
-            sudo chown root:kvm /dev/kvm
+            sudo chown "$USER":"$USER" /dev/kvm
             sudo chmod 660 /dev/kvm
+            ls -l /dev/kvm
           else
             echo "/dev/kvm is not available on this runner"
           fi
@@ -140,7 +141,7 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics -memory 4096 -cores 2
           script: bash .github/scripts/run_android_appium_suite.sh
       - name: Prepare Android reports
@@ -152,7 +153,15 @@ jobs:
             cp "reports/android/$suite/bdd-report.html" "reports/android/$suite/index.html"
           else
             cat > "reports/android/$suite/bdd-report.html" <<HTML
-          <!doctype html><html><body><h1>Android $suite BDD report was not generated.</h1><p>Check the Appium and logcat artifacts for this run.</p></body></html>
+          <!doctype html>
+          <html>
+            <body>
+              <h1>Android $suite BDD report was not generated</h1>
+              <p>The emulator/Appium step ended before pytest-bdd-report could run.</p>
+              <p>Open the GitHub Actions job log for the <strong>Run Android Appium BDD tests</strong> step to inspect emulator boot and Appium startup output.</p>
+              <p>Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}</p>
+            </body>
+          </html>
           HTML
             cp "reports/android/$suite/bdd-report.html" "reports/android/$suite/index.html"
           fi
