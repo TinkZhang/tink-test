@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
 import re
+import time
 from collections.abc import Iterable
+from pathlib import Path
 
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
@@ -138,14 +141,16 @@ class WeightPage:
         self.wait.until(EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, label))).click()
 
     def tap_first(self, locators: Iterable[tuple[str, str]]) -> None:
+        locator_list = list(locators)
         last_error: Exception | None = None
-        for locator in locators:
+        for locator in locator_list:
             try:
                 self.wait.until(EC.element_to_be_clickable(locator)).click()
                 return
             except (NoSuchElementException, TimeoutException) as exc:
                 last_error = exc
-        raise AssertionError(f"Unable to tap any locator: {list(locators)}") from last_error
+        self._capture_diagnostics("tap-first-failed")
+        raise AssertionError(f"Unable to tap any locator: {locator_list}") from last_error
 
     def _find_first_present(self, locators: Iterable[tuple[str, str]]) -> WebElement | bool:
         for locator in locators:
@@ -160,3 +165,22 @@ class WeightPage:
         if not match:
             raise AssertionError(f"Unable to parse weight from text: {text}")
         return float(match.group())
+
+    def _capture_diagnostics(self, name: str) -> None:
+        report_dir = os.environ.get("TINK_ANDROID_REPORT_DIR")
+        if not report_dir:
+            return
+
+        output_dir = Path(report_dir) / "diagnostics"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        stamp = f"{int(time.time() * 1000)}-{name}"
+
+        try:
+            (output_dir / f"{stamp}.xml").write_text(self.driver.page_source, encoding="utf-8")
+        except Exception:
+            pass
+
+        try:
+            self.driver.save_screenshot(str(output_dir / f"{stamp}.png"))
+        except Exception:
+            pass

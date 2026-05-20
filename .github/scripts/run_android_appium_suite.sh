@@ -8,6 +8,7 @@ appium_log="appium-$suite.log"
 logcat_log="logcat-$suite.log"
 
 mkdir -p "$report_dir"
+export TINK_ANDROID_REPORT_DIR="$report_dir"
 
 adb wait-for-device
 adb logcat -c >/dev/null 2>&1
