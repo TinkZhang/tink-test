@@ -65,10 +65,17 @@ jobs:
   android-appium:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - e2e
+          - mock
     env:
       TINK_API_BASE_URL: https://api.tinks.app/dev
       TINK_RUN_APPIUM: "1"
       TINK_ANDROID_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.android_ref || 'main' }}
+      TINK_ANDROID_SUITE: ${{ matrix.suite }}
     steps:
       - name: Checkout tink-test
         uses: actions/checkout@v4
@@ -111,53 +118,60 @@ jobs:
           set -euo pipefail
 
           cd android-app
-          TINK_API_BASE_URL=https://api.tinks.app/ ./gradlew assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk ../app-e2e-debug.apk
-
-          TINK_API_BASE_URL=http://10.0.2.2:8765/ ./gradlew clean assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk ../app-mock-debug.apk
-      - run: mkdir -p reports/android/e2e reports/android/mock
+          if [ "${TINK_ANDROID_SUITE}" = "mock" ]; then
+            TINK_API_BASE_URL=http://10.0.2.2:8765/ ./gradlew assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk ../app-mock-debug.apk
+          else
+            TINK_API_BASE_URL=https://api.tinks.app/ ./gradlew assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk ../app-e2e-debug.apk
+          fi
+      - run: mkdir -p "reports/android/${TINK_ANDROID_SUITE}"
       - name: Run Android Appium BDD tests
         id: appium
+        continue-on-error: true
         timeout-minutes: 25
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          TINK_ANDROID_APK_PATH: ${{ github.workspace }}/app-${{ matrix.suite }}-debug.apk
         with:
           api-level: 35
-          target: google_atd
+          target: default
           arch: x86_64
           disable-animations: true
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: bash .github/scripts/run_android_appium.sh
+          script: bash .github/scripts/run_android_appium_suite.sh
       - name: Prepare Android reports
         if: always()
         shell: bash
         run: |
-          for suite in e2e mock; do
-            if [ -f "reports/android/$suite/bdd-report.html" ]; then
-              cp "reports/android/$suite/bdd-report.html" "reports/android/$suite/index.html"
-            else
-              cat > "reports/android/$suite/index.html" <<HTML
-          <!doctype html><html><body><h1>Android $suite report was not generated.</h1></body></html>
+          suite="${TINK_ANDROID_SUITE}"
+          if [ -f "reports/android/$suite/bdd-report.html" ]; then
+            cp "reports/android/$suite/bdd-report.html" "reports/android/$suite/index.html"
+          else
+            cat > "reports/android/$suite/bdd-report.html" <<HTML
+          <!doctype html><html><body><h1>Android $suite BDD report was not generated.</h1><p>Check the Appium and logcat artifacts for this run.</p></body></html>
           HTML
-            fi
-          done
+            cp "reports/android/$suite/bdd-report.html" "reports/android/$suite/index.html"
+          fi
       - name: Upload Android reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-report-site
-          path: reports/android
+          name: android-${{ matrix.suite }}-report-site
+          path: reports/android/${{ matrix.suite }}
           if-no-files-found: warn
       - name: Upload Appium log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: appium-log
-          path: appium.log
+          name: android-${{ matrix.suite }}-logs
+          path: |
+            appium-${{ matrix.suite }}.log
+            logcat-${{ matrix.suite }}.log
           if-no-files-found: ignore
       - name: Fail if Android tests failed
-        if: always() && (steps.appium.outputs.e2e_status != '0' || steps.appium.outputs.mock_status != '0')
+        if: always() && (steps.appium.outcome == 'failure' || steps.appium.outputs.status != '0')
         run: exit 1
 
   pages:
@@ -182,8 +196,13 @@ jobs:
           if [ -d downloaded-reports/api-report-site ]; then
             cp -R downloaded-reports/api-report-site/. reports/api/
           fi
-          if [ -d downloaded-reports/android-report-site ]; then
-            cp -R downloaded-reports/android-report-site/. reports/android/
+          if [ -d downloaded-reports/android-e2e-report-site ]; then
+            mkdir -p reports/android/e2e
+            cp -R downloaded-reports/android-e2e-report-site/. reports/android/e2e/
+          fi
+          if [ -d downloaded-reports/android-mock-report-site ]; then
+            mkdir -p reports/android/mock
+            cp -R downloaded-reports/android-mock-report-site/. reports/android/mock/
           fi
 
           cat > reports/index.html <<'HTML'

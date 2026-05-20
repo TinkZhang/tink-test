@@ -17,6 +17,7 @@ class WeightPage:
         self.wait = WebDriverWait(driver, timeout)
 
     def open_weight_from_drawer(self) -> None:
+        self.driver.activate_app("app.tinks.tink")
         self.tap_accessibility("打开抽屉")
         self.tap_first(
             [

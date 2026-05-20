@@ -19,7 +19,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def android_driver() -> Generator:
     driver = create_android_driver()
     try:

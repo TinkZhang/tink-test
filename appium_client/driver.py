@@ -23,10 +23,10 @@ def create_android_driver() -> webdriver.Remote:
         "platformName": "Android",
         "automationName": "UiAutomator2",
         "deviceName": os.environ.get("TINK_ANDROID_DEVICE_NAME", "Android Emulator"),
-        "app": str(apk_path),
         "appPackage": os.environ.get("TINK_ANDROID_APP_PACKAGE", "app.tinks.tink"),
         "appActivity": os.environ.get("TINK_ANDROID_APP_ACTIVITY", ".MainActivity"),
         "autoGrantPermissions": True,
+        "autoLaunch": True,
         "noReset": False,
         "fullReset": False,
         "adbExecTimeout": 120000,
@@ -41,6 +41,8 @@ def create_android_driver() -> webdriver.Remote:
         "uiautomator2ServerLaunchTimeout": 120000,
         "newCommandTimeout": 120,
     }
+    if os.environ.get("TINK_ANDROID_PREINSTALLED") != "1":
+        capabilities["app"] = str(apk_path)
     server_url = os.environ.get("APPIUM_SERVER_URL", "http://127.0.0.1:4723")
     options = UiAutomator2Options().load_capabilities(capabilities)
     return webdriver.Remote(server_url, options=options)
