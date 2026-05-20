@@ -101,8 +101,10 @@ jobs:
       - run: uv sync
       - name: Install Appium
         run: |
-          npm install -g appium
-          appium driver install uiautomator2
+          npm install -g appium@2.19.0
+          appium driver install --source=npm appium-uiautomator2-driver@4.2.9
+          appium --version
+          appium driver list --installed
       - name: Enable KVM for Android emulator
         run: |
           if [ -e /dev/kvm ]; then
