@@ -8,6 +8,7 @@ from appium.options.android import UiAutomator2Options
 
 
 def create_android_driver() -> webdriver.Remote:
+    preinstalled = os.environ.get("TINK_ANDROID_PREINSTALLED") == "1"
     apk_path = Path(
         os.environ.get(
             "TINK_ANDROID_APK_PATH",
@@ -29,7 +30,7 @@ def create_android_driver() -> webdriver.Remote:
         "autoLaunch": True,
         "skipDeviceInitialization": True,
         "skipUnlock": True,
-        "noReset": False,
+        "noReset": preinstalled,
         "fullReset": False,
         "adbExecTimeout": 120000,
         "androidInstallTimeout": 120000,
@@ -43,7 +44,7 @@ def create_android_driver() -> webdriver.Remote:
         "uiautomator2ServerLaunchTimeout": 120000,
         "newCommandTimeout": 120,
     }
-    if os.environ.get("TINK_ANDROID_PREINSTALLED") != "1":
+    if not preinstalled:
         capabilities["app"] = str(apk_path)
     server_url = os.environ.get("APPIUM_SERVER_URL", "http://127.0.0.1:4723")
     options = UiAutomator2Options().load_capabilities(capabilities)
