@@ -38,13 +38,13 @@ class WeightPage:
         self.wait_for_text("体重趋势")
 
     def open_history(self) -> None:
-        self.tap_first(
-            [
-                (AppiumBy.ID, "app.tinks.tink:id/weight_history_button"),
-                (AppiumBy.ID, "weight_history_button"),
-                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("查看所有历史记录")'),
-            ]
-        )
+        history_button_locators = [
+            (AppiumBy.ID, "app.tinks.tink:id/weight_history_button"),
+            (AppiumBy.ID, "weight_history_button"),
+            (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("查看所有历史记录")'),
+        ]
+        self.scroll_weight_dashboard_to(history_button_locators)
+        self.tap_first(history_button_locators)
         self.wait_for_any_text(["体重历史", "暂无体重记录", "斤"])
 
     def go_back(self) -> None:
@@ -140,6 +140,21 @@ class WeightPage:
     def tap_accessibility(self, label: str) -> None:
         self.wait.until(EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, label))).click()
 
+    def scroll_weight_dashboard_to(self, locators: Iterable[tuple[str, str]]) -> None:
+        locator_list = list(locators)
+        if self._find_first_present(locator_list):
+            return
+
+        for _ in range(4):
+            if self._scroll_weight_dashboard_once():
+                time.sleep(0.5)
+            else:
+                self._swipe_page_up()
+            if self._find_first_present(locator_list):
+                return
+
+        self._capture_diagnostics("scroll-target-missing")
+
     def tap_first(self, locators: Iterable[tuple[str, str]]) -> None:
         locator_list = list(locators)
         last_error: Exception | None = None
@@ -159,6 +174,33 @@ class WeightPage:
             except NoSuchElementException:
                 continue
         return False
+
+    def _scroll_weight_dashboard_once(self) -> bool:
+        try:
+            dashboard = self.find_by_test_tag("weight_dashboard_list")
+            rect = dashboard.rect
+            return bool(
+                self.driver.execute_script(
+                    "mobile: scrollGesture",
+                    {
+                        "left": rect["x"],
+                        "top": rect["y"],
+                        "width": rect["width"],
+                        "height": rect["height"],
+                        "direction": "down",
+                        "percent": 0.8,
+                    },
+                )
+            )
+        except Exception:
+            return False
+
+    def _swipe_page_up(self) -> None:
+        rect = self.driver.get_window_rect()
+        x = rect["x"] + rect["width"] // 2
+        start_y = rect["y"] + int(rect["height"] * 0.82)
+        end_y = rect["y"] + int(rect["height"] * 0.28)
+        self.driver.swipe(x, start_y, x, end_y, 500)
 
     def _parse_first_float(self, text: str) -> float:
         match = re.search(r"\d+(?:\.\d+)?", text)
