@@ -11,6 +11,23 @@ mkdir -p "$report_dir"
 export TINK_ANDROID_REPORT_DIR="$report_dir"
 
 adb wait-for-device
+
+for _ in $(seq 1 120); do
+  boot_completed="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+  dev_bootcomplete="$(adb shell getprop dev.bootcomplete 2>/dev/null | tr -d '\r')"
+  if [ "$boot_completed" = "1" ] && [ "$dev_bootcomplete" = "1" ]; then
+    break
+  fi
+  sleep 2
+done
+
+adb shell wm dismiss-keyguard >/dev/null 2>&1 || true
+adb shell settings put global window_animation_scale 0 >/dev/null 2>&1 || true
+adb shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
+adb shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
+adb shell pm list packages >/dev/null 2>&1 || true
+sleep "${TINK_ANDROID_POST_BOOT_SLEEP:-60}"
+
 adb logcat -c >/dev/null 2>&1
 adb logcat -v time > "$logcat_log" 2>&1 &
 logcat_pid=$!
