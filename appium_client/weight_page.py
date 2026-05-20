@@ -21,13 +21,13 @@ class WeightPage:
 
     def open_weight_from_drawer(self) -> None:
         self.driver.activate_app("app.tinks.tink")
-        self.tap_first(
-            [
-                (AppiumBy.ID, "app.tinks.tink:id/top_bar_menu_button"),
-                (AppiumBy.ID, "top_bar_menu_button"),
-                (AppiumBy.ACCESSIBILITY_ID, "打开抽屉"),
-            ]
-        )
+        menu_button_locators = [
+            (AppiumBy.ID, "app.tinks.tink:id/top_bar_menu_button"),
+            (AppiumBy.ID, "top_bar_menu_button"),
+            (AppiumBy.ACCESSIBILITY_ID, "打开抽屉"),
+        ]
+        self.return_to_top_level_if_needed(menu_button_locators)
+        self.tap_first(menu_button_locators)
         self.tap_first(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/drawer_destination_weight"),
@@ -139,6 +139,25 @@ class WeightPage:
 
     def tap_accessibility(self, label: str) -> None:
         self.wait.until(EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, label))).click()
+
+    def return_to_top_level_if_needed(self, menu_button_locators: Iterable[tuple[str, str]]) -> None:
+        locator_list = list(menu_button_locators)
+        back_button_locators = [
+            (AppiumBy.ID, "app.tinks.tink:id/top_bar_back_button"),
+            (AppiumBy.ID, "top_bar_back_button"),
+            (AppiumBy.ACCESSIBILITY_ID, "返回上级"),
+        ]
+
+        for _ in range(3):
+            if self._find_first_present(locator_list):
+                return
+
+            back_button = self._find_first_present(back_button_locators)
+            if back_button:
+                back_button.click()
+            else:
+                self.driver.back()
+            time.sleep(0.5)
 
     def scroll_weight_dashboard_to(self, locators: Iterable[tuple[str, str]]) -> None:
         locator_list = list(locators)
