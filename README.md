@@ -65,6 +65,8 @@ uv run pytest tests/android -m "android and mock" --bdd-report=reports/android/m
 
 `Tink-Super-App` owns APK builds in CI and dispatches this repository with the Android workflow run id. GitHub Actions downloads the published `tink-android-debug-apk` artifact, runs Appium with the UiAutomator2 driver on an Android emulator, uploads artifacts, and publishes API/Android report links to GitHub Pages.
 
+During Appium runs, every Appium-backed BDD step captures a screenshot. The generated Android BDD HTML report embeds those screenshots directly under an `Android Step Screenshots` section so the executed flow can be reviewed without downloading a separate artifact.
+
 Required GitHub secrets:
 
 - `Tink-Super-App`: `TINK_TEST_DISPATCH_TOKEN` can dispatch events to `TinkZhang/tink-test`.

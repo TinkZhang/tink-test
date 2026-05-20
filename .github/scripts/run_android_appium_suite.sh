@@ -94,5 +94,7 @@ TINK_ANDROID_PREINSTALLED=1 \
     --bdd-report="$report_dir/bdd-report.html"
 status=$?
 
+uv run python scripts/embed_android_screenshots.py "$report_dir" || true
+
 echo "status=$status" >> "$GITHUB_OUTPUT"
 exit 0

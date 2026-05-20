@@ -3,10 +3,12 @@ from __future__ import annotations
 import os
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from appium_client import WeightPage, create_android_driver
+from appium_client.step_screenshots import StepScreenshotRecorder
 from mock_server import WeightMockServer
 
 
@@ -17,6 +19,20 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         if "android" in item.keywords:
             item.add_marker(skip)
+
+
+def pytest_bdd_after_step(request: pytest.FixtureRequest, feature: Any, scenario: Any, step: Any) -> None:
+    _capture_step_screenshot(request, feature, scenario, step, "passed")
+
+
+def pytest_bdd_step_error(
+    request: pytest.FixtureRequest,
+    feature: Any,
+    scenario: Any,
+    step: Any,
+    exception: Exception,
+) -> None:
+    _capture_step_screenshot(request, feature, scenario, step, "failed")
 
 
 @pytest.fixture(scope="session")
@@ -42,3 +58,37 @@ def weight_mock_server() -> Generator[WeightMockServer, None, None]:
         yield server
     finally:
         server.stop()
+
+
+def _capture_step_screenshot(
+    request: pytest.FixtureRequest,
+    feature: Any,
+    scenario: Any,
+    step: Any,
+    status: str,
+) -> None:
+    if "android" not in request.node.keywords:
+        return
+
+    report_dir = os.environ.get("TINK_ANDROID_REPORT_DIR")
+    if not report_dir:
+        return
+
+    driver = request.node.funcargs.get("android_driver")
+    if driver is None:
+        weight_page = request.node.funcargs.get("weight_page")
+        driver = getattr(weight_page, "driver", None)
+    if driver is None:
+        return
+
+    recorder = request.config.stash.setdefault(
+        _step_screenshot_key,
+        StepScreenshotRecorder(report_dir),
+    )
+    try:
+        recorder.capture(driver, feature=feature, scenario=scenario, step=step, status=status)
+    except Exception as exc:
+        print(f"Unable to capture Android step screenshot: {exc}")
+
+
+_step_screenshot_key = pytest.StashKey[StepScreenshotRecorder]()
