@@ -18,13 +18,18 @@ class WeightPage:
 
     def open_weight_from_drawer(self) -> None:
         self.driver.activate_app("app.tinks.tink")
-        self.tap_accessibility("打开抽屉")
+        self.tap_first(
+            [
+                (AppiumBy.ID, "app.tinks.tink:id/top_bar_menu_button"),
+                (AppiumBy.ID, "top_bar_menu_button"),
+                (AppiumBy.ACCESSIBILITY_ID, "打开抽屉"),
+            ]
+        )
         self.tap_first(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/drawer_destination_weight"),
                 (AppiumBy.ID, "drawer_destination_weight"),
                 (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("体重 C")'),
-                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("设置 B")'),
             ]
         )
         self.wait_for_text("体重趋势")
