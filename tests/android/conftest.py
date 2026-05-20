@@ -21,8 +21,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip)
 
 
-def pytest_bdd_after_step(request: pytest.FixtureRequest, feature: Any, scenario: Any, step: Any) -> None:
-    _capture_step_screenshot(request, feature, scenario, step, "passed")
+def pytest_bdd_after_step(
+    request: pytest.FixtureRequest,
+    feature: Any,
+    scenario: Any,
+    step: Any,
+    step_func_args: dict[str, Any],
+) -> None:
+    _capture_step_screenshot(request, feature, scenario, step, step_func_args, "passed")
 
 
 def pytest_bdd_step_error(
@@ -30,9 +36,10 @@ def pytest_bdd_step_error(
     feature: Any,
     scenario: Any,
     step: Any,
+    step_func_args: dict[str, Any],
     exception: Exception,
 ) -> None:
-    _capture_step_screenshot(request, feature, scenario, step, "failed")
+    _capture_step_screenshot(request, feature, scenario, step, step_func_args, "failed")
 
 
 @pytest.fixture(scope="session")
@@ -65,6 +72,7 @@ def _capture_step_screenshot(
     feature: Any,
     scenario: Any,
     step: Any,
+    step_func_args: dict[str, Any],
     status: str,
 ) -> None:
     if "android" not in request.node.keywords:
@@ -74,7 +82,12 @@ def _capture_step_screenshot(
     if not report_dir:
         return
 
-    driver = request.node.funcargs.get("android_driver")
+    driver = step_func_args.get("android_driver")
+    if driver is None:
+        weight_page = step_func_args.get("weight_page")
+        driver = getattr(weight_page, "driver", None)
+    if driver is None:
+        driver = request.node.funcargs.get("android_driver")
     if driver is None:
         weight_page = request.node.funcargs.get("weight_page")
         driver = getattr(weight_page, "driver", None)
