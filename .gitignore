@@ -7,3 +7,5 @@ reports/
 .cucumber-data.json
 .env
 .env.*
+appium-*.log
+logcat-*.log

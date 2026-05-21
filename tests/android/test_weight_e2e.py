@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 import pytest
 from pytest_bdd import given, parsers, scenario, then, when
@@ -138,19 +139,27 @@ def api_includes_android_created_weight(
     cleanup_weights: list[int],
 ) -> None:
     expected = scenario_state["android_created_weight"]
-    response = tink_api.get_weights()
-    tink_api.assert_status(response, 200)
-    rows = tink_api.json(response)
     known_weight_ids = scenario_state.get("known_weight_ids", set())
-    match = next(
-        (
-            row
-            for row in rows
-            if row["id"] not in known_weight_ids
-            and math.isclose(float(row["weight"]), expected, abs_tol=0.05)
-        ),
-        None,
-    )
+    rows = []
+    match = None
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        response = tink_api.get_weights()
+        tink_api.assert_status(response, 200)
+        rows = tink_api.json(response)
+        match = next(
+            (
+                row
+                for row in rows
+                if row["id"] not in known_weight_ids
+                and math.isclose(float(row["weight"]), expected, abs_tol=0.05)
+            ),
+            None,
+        )
+        if match is not None:
+            break
+        time.sleep(1)
+
     assert match is not None, f"Expected API weight {expected}; rows were {rows}"
     cleanup_weights.append(match["id"])
     scenario_state["android_created_api_row"] = match

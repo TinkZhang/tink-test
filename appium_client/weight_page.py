@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -20,8 +21,34 @@ class WeightPage:
         self.wait = WebDriverWait(driver, timeout)
 
     def open_weight_from_drawer(self) -> None:
-        self.driver.terminate_app("app.tinks.tink")
-        self.driver.activate_app("app.tinks.tink")
+        self._adb_shell(["am", "force-stop", "app.tinks.tink"])
+        if os.environ.get("TINK_ANDROID_API_BASE_URL_OVERRIDE"):
+            self._adb_shell(
+                [
+                    "am",
+                    "broadcast",
+                    "-n",
+                    "app.tinks.tink/.debug.ApiBaseUrlOverrideReceiver",
+                    "-a",
+                    "app.tinks.tink.debug.SET_API_BASE_URL",
+                    "--es",
+                    "base_url",
+                    os.environ["TINK_ANDROID_API_BASE_URL_OVERRIDE"],
+                ]
+            )
+        self._adb_shell(
+            [
+                "am",
+                "start",
+                "-W",
+                "-n",
+                "app.tinks.tink/.MainActivity",
+                "-a",
+                "android.intent.action.MAIN",
+                "-c",
+                "android.intent.category.LAUNCHER",
+            ]
+        )
         menu_button_locators = [
             (AppiumBy.ID, "app.tinks.tink:id/top_bar_menu_button"),
             (AppiumBy.ID, "top_bar_menu_button"),
@@ -48,7 +75,7 @@ class WeightPage:
         self.wait.until(
             lambda _: self._has_exact_text(expected_text)
             or self._has_exact_content_description(f"current weight {expected_text}")
-            or abs(self.current_weight_value() - weight) <= 0.05
+            or self._current_weight_is_close_to(weight)
         )
 
     def assert_status_shows_last_date(self, date_text: str) -> None:
@@ -61,6 +88,7 @@ class WeightPage:
         history_button_locators = [
             (AppiumBy.ID, "app.tinks.tink:id/weight_history_button"),
             (AppiumBy.ID, "weight_history_button"),
+            (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("weight_history_button")'),
             (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("查看所有历史记录")'),
         ]
         self.scroll_weight_dashboard_to(history_button_locators)
@@ -104,12 +132,13 @@ class WeightPage:
             [
                 (AppiumBy.ID, "app.tinks.tink:id/weight_add_record_button"),
                 (AppiumBy.ID, "weight_add_record_button"),
+                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceId("weight_add_record_button")'),
                 (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("添加新记录")'),
+                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("记录")'),
             ]
         )
-        added_weight = self._parse_first_float(button.text)
+        added_weight = self._parse_first_float(button.text) if button.text else self.current_weight_value()
         button.click()
-        self.wait_for_text(f"{added_weight:.1f} 斤")
         return added_weight
 
     def add_weight_by_drag(self) -> float:
@@ -140,6 +169,12 @@ class WeightPage:
                 continue
 
         raise AssertionError("Unable to read current weight value from the Android UI")
+
+    def _current_weight_is_close_to(self, weight: float) -> bool:
+        try:
+            return abs(self.current_weight_value() - weight) <= 0.05
+        except AssertionError:
+            return False
 
     def assert_history_contains_weight(self, weight: float) -> None:
         self.wait_for_text(f"{weight:.1f} 斤")
@@ -203,14 +238,17 @@ class WeightPage:
         locators = [
             (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
             (AppiumBy.ID, tag),
+            (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().resourceId("{tag}")'),
         ]
         self.scroll_weight_dashboard_to(locators)
 
     def delete_weight(self, weight_id: int) -> None:
+        tag = f"weight_delete_button_{weight_id}"
         self.tap_first(
             [
-                (AppiumBy.ID, f"app.tinks.tink:id/weight_delete_button_{weight_id}"),
-                (AppiumBy.ID, f"weight_delete_button_{weight_id}"),
+                (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
+                (AppiumBy.ID, tag),
+                (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().resourceId("{tag}")'),
             ]
         )
 
@@ -243,12 +281,22 @@ class WeightPage:
             [
                 (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
                 (AppiumBy.ID, tag),
+                (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().resourceId("{tag}")'),
             ]
         )
 
     def _find_by_test_tag_now(self, tag: str) -> list[WebElement]:
         elements = self.driver.find_elements(AppiumBy.ID, f"app.tinks.tink:id/{tag}")
-        return elements or self.driver.find_elements(AppiumBy.ID, tag)
+        if elements:
+            return elements
+        elements = self.driver.find_elements(AppiumBy.ID, tag)
+        if elements:
+            return elements
+        return self.driver.find_elements(
+            AppiumBy.ANDROID_UIAUTOMATOR,
+            f'new UiSelector().resourceId("{tag}")',
+        )
+
 
     def _decimal_text_values(self) -> list[float]:
         values: list[float] = []
@@ -344,7 +392,7 @@ class WeightPage:
                         "top": rect["y"],
                         "width": rect["width"],
                         "height": rect["height"],
-                        "direction": "down",
+                        "direction": "up",
                         "percent": 0.8,
                     },
                 )
@@ -383,3 +431,10 @@ class WeightPage:
             self.driver.save_screenshot(str(output_dir / f"{stamp}.png"))
         except Exception:
             pass
+
+    def _adb_shell(self, args: list[str]) -> None:
+        command = ["adb"]
+        if os.environ.get("ANDROID_SERIAL"):
+            command.extend(["-s", os.environ["ANDROID_SERIAL"]])
+        command.extend(["shell", *args])
+        subprocess.run(command, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

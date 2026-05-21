@@ -42,7 +42,7 @@ def pytest_bdd_step_error(
     _capture_step_screenshot(request, feature, scenario, step, step_func_args, "failed")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def android_driver() -> Generator:
     driver = create_android_driver()
     try:

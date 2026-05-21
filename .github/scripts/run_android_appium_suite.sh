@@ -2,6 +2,21 @@
 
 set +e
 
+write_github_status() {
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    echo "status=$1" >> "$GITHUB_OUTPUT"
+  fi
+}
+
+finish_with_status() {
+  local status="$1"
+  write_github_status "$status"
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    exit 0
+  fi
+  exit "$status"
+}
+
 suite="${TINK_ANDROID_SUITE:-e2e}"
 report_dir="reports/android/$suite"
 appium_log="appium-$suite.log"
@@ -53,22 +68,20 @@ done
 if [ "$appium_ready" != "1" ]; then
   echo "Appium server did not become ready"
   cat "$appium_log"
-  echo "status=1" >> "$GITHUB_OUTPUT"
-  exit 0
+  finish_with_status 1
 fi
 
 if [ -z "${TINK_ANDROID_APK_PATH:-}" ] || [ ! -f "$TINK_ANDROID_APK_PATH" ]; then
   echo "TINK_ANDROID_APK_PATH does not point to an APK: ${TINK_ANDROID_APK_PATH:-}"
-  echo "status=1" >> "$GITHUB_OUTPUT"
-  exit 0
+  finish_with_status 1
 fi
 
-adb install -r "$TINK_ANDROID_APK_PATH"
+adb uninstall app.tinks.tink >/dev/null 2>&1 || true
+adb install -r -g "$TINK_ANDROID_APK_PATH"
 install_status=$?
 if [ "$install_status" != "0" ]; then
   echo "Failed to preinstall Android APK"
-  echo "status=$install_status" >> "$GITHUB_OUTPUT"
-  exit 0
+  finish_with_status "$install_status"
 fi
 
 if [ -n "${TINK_ANDROID_API_BASE_URL_OVERRIDE:-}" ]; then
@@ -91,10 +104,10 @@ fi
 
 TINK_ANDROID_PREINSTALLED=1 \
   uv run pytest tests/android -m "$selector" \
-    --bdd-report="$report_dir/bdd-report.html"
+    --bdd-report="$report_dir/bdd-report.html" \
+    "$@"
 status=$?
 
 uv run python scripts/embed_android_screenshots.py "$report_dir" || true
 
-echo "status=$status" >> "$GITHUB_OUTPUT"
-exit 0
+finish_with_status "$status"

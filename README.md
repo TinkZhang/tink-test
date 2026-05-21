@@ -63,6 +63,36 @@ TINK_ANDROID_API_BASE_URL_OVERRIDE=http://10.0.2.2:8765/ \
 uv run pytest tests/android -m "android and mock" --bdd-report=reports/android/mock/bdd-report.html
 ```
 
+### Local Android Appium Loop
+
+For faster iteration, build the debug APK locally in `Tink-Super-App`, then run Appium from this repo against a local emulator:
+
+```sh
+cd ../Tink-Super-App
+scripts/build-appium-debug-apk.sh
+
+cd ../tink-test
+scripts/run_android_appium_local.sh --suite e2e
+scripts/run_android_appium_local.sh --suite mock
+```
+
+The local runner starts an emulator when needed, starts Appium, installs the APK, runs the requested BDD suite, and writes the same HTML reports used by CI:
+
+- `reports/android/e2e/bdd-report.html`
+- `reports/android/mock/bdd-report.html`
+
+Use `--build-apk` when you want the test repo script to build the local Android APK first:
+
+```sh
+scripts/run_android_appium_local.sh --suite mock --build-apk
+```
+
+To iterate on one scenario, pass pytest arguments after `--`:
+
+```sh
+scripts/run_android_appium_local.sh --suite e2e -- -k "add_and_delete"
+```
+
 `Tink-Super-App` owns APK builds in CI and dispatches this repository with the Android workflow run id. GitHub Actions downloads the published `tink-android-debug-apk` artifact, runs Appium with the UiAutomator2 driver on an Android emulator, uploads artifacts, and publishes API/Android report links to GitHub Pages.
 
 During Appium runs, every Appium-backed BDD step captures a screenshot. The generated Android BDD HTML report embeds those screenshots directly under an `Android Step Screenshots` section so the executed flow can be reviewed without downloading a separate artifact.
