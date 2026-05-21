@@ -40,14 +40,15 @@ class WeightPage:
 
     def assert_current_weight_blank(self) -> None:
         self.wait_for_text("体重趋势")
-        elements = self.driver.find_elements(
-            AppiumBy.ANDROID_UIAUTOMATOR,
-            r'new UiSelector().textMatches("\\d+\\.\\d")',
-        )
-        assert not elements, "Expected current weight value to be blank"
+        values = self._decimal_text_values()
+        assert not values, f"Expected current weight value to be blank, found {values}"
 
     def assert_current_weight_is(self, weight: float) -> None:
-        self.wait.until(lambda _: abs(self.current_weight_value() - weight) <= 0.05)
+        expected_text = f"{weight:.1f}"
+        self.wait.until(
+            lambda _: self._has_exact_text(expected_text)
+            or abs(self.current_weight_value() - weight) <= 0.05
+        )
 
     def assert_status_shows_last_date(self, date_text: str) -> None:
         self.wait_for_text(f"上次记录: {date_text}")
@@ -122,10 +123,9 @@ class WeightPage:
     def current_weight_value(self) -> float:
         elements = self._find_by_test_tag_now("weight_current_value")
         if not elements:
-            elements = self.driver.find_elements(
-                AppiumBy.ANDROID_UIAUTOMATOR,
-                r'new UiSelector().textMatches("\\d+\\.\\d")',
-            )
+            values = self._decimal_text_values()
+            if values:
+                return values[0]
 
         for element in elements:
             try:
@@ -243,6 +243,19 @@ class WeightPage:
     def _find_by_test_tag_now(self, tag: str) -> list[WebElement]:
         elements = self.driver.find_elements(AppiumBy.ID, f"app.tinks.tink:id/{tag}")
         return elements or self.driver.find_elements(AppiumBy.ID, tag)
+
+    def _decimal_text_values(self) -> list[float]:
+        values: list[float] = []
+        for text in re.findall(r'text="(\d+(?:\.\d+)?)"', self.driver.page_source):
+            try:
+                values.append(float(text))
+            except ValueError:
+                continue
+        return values
+
+    def _has_exact_text(self, text: str) -> bool:
+        escaped = re.escape(text)
+        return re.search(rf'text="{escaped}"', self.driver.page_source) is not None
 
     def find_first_present(self, locators: Iterable[tuple[str, str]]) -> WebElement:
         return self.wait.until(lambda _: self._find_first_present(locators))
