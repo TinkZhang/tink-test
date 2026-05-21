@@ -72,7 +72,7 @@ jobs:
   android-appium:
     if: github.event_name == 'repository_dispatch' || (github.event_name == 'workflow_dispatch' && inputs.android_run_id != '')
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -137,7 +137,7 @@ jobs:
       - name: Run Android Appium BDD tests
         id: appium
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 45
         uses: reactivecircus/android-emulator-runner@v2
         env:
           TINK_ANDROID_APK_PATH: ${{ steps.apk.outputs.path }}

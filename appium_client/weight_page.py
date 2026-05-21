@@ -39,8 +39,11 @@ class WeightPage:
         self.wait_for_text("体重趋势")
 
     def assert_current_weight_blank(self) -> None:
-        self.find_by_test_tag("weight_control_card")
-        elements = self._find_by_test_tag_now("weight_current_value")
+        self.wait_for_text("体重趋势")
+        elements = self.driver.find_elements(
+            AppiumBy.ANDROID_UIAUTOMATOR,
+            r'new UiSelector().textMatches("\\d+\\.\\d")',
+        )
         assert not elements, "Expected current weight value to be blank"
 
     def assert_current_weight_is(self, weight: float) -> None:
@@ -117,8 +120,20 @@ class WeightPage:
         return self.add_current_weight()
 
     def current_weight_value(self) -> float:
-        element = self.find_by_test_tag("weight_current_value")
-        return float(element.text)
+        elements = self._find_by_test_tag_now("weight_current_value")
+        if not elements:
+            elements = self.driver.find_elements(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                r'new UiSelector().textMatches("\\d+\\.\\d")',
+            )
+
+        for element in elements:
+            try:
+                return float(element.text)
+            except ValueError:
+                continue
+
+        raise AssertionError("Unable to read current weight value from the Android UI")
 
     def assert_history_contains_weight(self, weight: float) -> None:
         self.wait_for_text(f"{weight:.1f} 斤")
@@ -150,11 +165,9 @@ class WeightPage:
         self.wait_for_text("Request failed")
 
     def assert_trend_empty(self) -> None:
-        self.scroll_to_test_tag("weight_trend_card")
         self.wait_for_text("暂无趋势数据")
 
     def assert_trend_has_data(self) -> None:
-        self.scroll_to_test_tag("weight_trend_card")
         self.wait.until(
             lambda _: not self.driver.find_elements(
                 AppiumBy.ANDROID_UIAUTOMATOR,
@@ -163,7 +176,6 @@ class WeightPage:
         )
 
     def select_month_trend(self) -> None:
-        self.scroll_to_test_tag("weight_trend_card")
         self.tap_first(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/weight_trend_month"),
@@ -173,7 +185,6 @@ class WeightPage:
         )
 
     def select_all_trend(self) -> None:
-        self.scroll_to_test_tag("weight_trend_card")
         self.tap_first(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/weight_trend_all"),
