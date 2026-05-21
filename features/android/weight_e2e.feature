@@ -10,11 +10,17 @@ Feature: Android weight E2E
     Then the Android weight history shows the API-created weight
 
   @android @e2e
-  Scenario: Add a weight through Android and verify it through the API
+  Scenario: Add and delete a weight through Android without changing dev state
     Given the Tink dev API is reachable
-    And the API has a seed weight record for Android
+    And the API has a temporary baseline weight 139.8 for Android
     When I open the Android weight screen
-    And I add a weight record through Android
+    Then the Android current weight is 139.8
+    And Android shows the weight as recorded today
+    When I adjust Android weight to 140.0 and add it
+    Then the Android current weight is 140.0
+    And Android shows the weight as recorded today
     Then the API includes the Android-created weight
     When I open the Android weight history
-    Then the Android weight history shows the Android-created weight
+    And I delete the Android-created weight from history
+    And I return to the Android weight screen
+    Then the Android current weight returns to 139.8

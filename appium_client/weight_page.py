@@ -20,6 +20,7 @@ class WeightPage:
         self.wait = WebDriverWait(driver, timeout)
 
     def open_weight_from_drawer(self) -> None:
+        self.driver.terminate_app("app.tinks.tink")
         self.driver.activate_app("app.tinks.tink")
         menu_button_locators = [
             (AppiumBy.ID, "app.tinks.tink:id/top_bar_menu_button"),
@@ -37,6 +38,20 @@ class WeightPage:
         )
         self.wait_for_text("体重趋势")
 
+    def assert_current_weight_blank(self) -> None:
+        self.find_by_test_tag("weight_control_card")
+        elements = self._find_by_test_tag_now("weight_current_value")
+        assert not elements, "Expected current weight value to be blank"
+
+    def assert_current_weight_is(self, weight: float) -> None:
+        self.wait.until(lambda _: abs(self.current_weight_value() - weight) <= 0.05)
+
+    def assert_status_shows_last_date(self, date_text: str) -> None:
+        self.wait_for_text(f"上次记录: {date_text}")
+
+    def assert_status_shows_today_recorded(self) -> None:
+        self.wait_for_text("今日已记录")
+
     def open_history(self) -> None:
         history_button_locators = [
             (AppiumBy.ID, "app.tinks.tink:id/weight_history_button"),
@@ -53,13 +68,33 @@ class WeightPage:
         except TimeoutException:
             self.driver.back()
 
-    def add_weight_by_drag(self) -> float:
+    def adjust_weight_to(self, target_weight: float) -> None:
         drag_area = self.find_by_test_tag("weight_drag_area")
         rect = drag_area.rect
-        start_x = rect["x"] + rect["width"] // 2
-        start_y = rect["y"] + int(rect["height"] * 0.75)
-        end_y = rect["y"] + int(rect["height"] * 0.2)
-        self.driver.swipe(start_x, start_y, start_x, end_y, 700)
+        x = rect["x"] + rect["width"] // 2
+        center_y = rect["y"] + rect["height"] // 2
+        min_y = rect["y"] + int(rect["height"] * 0.15)
+        max_y = rect["y"] + int(rect["height"] * 0.85)
+
+        for _ in range(20):
+            current = self.current_weight_value()
+            diff = target_weight - current
+            if abs(diff) <= 0.05:
+                return
+
+            drag_pixels = max(-120, min(120, int(-diff * 300)))
+            if drag_pixels == 0:
+                drag_pixels = -1 if diff > 0 else 1
+            end_y = max(min_y, min(max_y, center_y + drag_pixels))
+            self.driver.swipe(x, center_y, x, end_y, 450)
+            self.wait.until(lambda _: abs(self.current_weight_value() - current) >= 0.05)
+
+        raise AssertionError(
+            f"Unable to adjust current weight from {self.current_weight_value():.1f} "
+            f"to {target_weight:.1f}"
+        )
+
+    def add_current_weight(self) -> float:
         button = self.find_first_present(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/weight_add_record_button"),
@@ -71,6 +106,15 @@ class WeightPage:
         button.click()
         self.wait_for_text(f"{added_weight:.1f} 斤")
         return added_weight
+
+    def add_weight_by_drag(self) -> float:
+        drag_area = self.find_by_test_tag("weight_drag_area")
+        rect = drag_area.rect
+        start_x = rect["x"] + rect["width"] // 2
+        start_y = rect["y"] + int(rect["height"] * 0.75)
+        end_y = rect["y"] + int(rect["height"] * 0.2)
+        self.driver.swipe(start_x, start_y, start_x, end_y, 700)
+        return self.add_current_weight()
 
     def current_weight_value(self) -> float:
         element = self.find_by_test_tag("weight_current_value")
@@ -91,8 +135,59 @@ class WeightPage:
             )
         )
 
+    def assert_history_does_not_contain_weight_id(self, weight_id: int) -> None:
+        tags = [
+            f"app.tinks.tink:id/weight_history_item_{weight_id}",
+            f"weight_history_item_{weight_id}",
+            f"app.tinks.tink:id/weight_delete_button_{weight_id}",
+            f"weight_delete_button_{weight_id}",
+        ]
+        self.wait.until(
+            lambda _: not any(self.driver.find_elements(AppiumBy.ID, tag) for tag in tags)
+        )
+
     def assert_api_failure_visible(self) -> None:
         self.wait_for_text("Request failed")
+
+    def assert_trend_empty(self) -> None:
+        self.scroll_to_test_tag("weight_trend_card")
+        self.wait_for_text("暂无趋势数据")
+
+    def assert_trend_has_data(self) -> None:
+        self.scroll_to_test_tag("weight_trend_card")
+        self.wait.until(
+            lambda _: not self.driver.find_elements(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                'new UiSelector().text("暂无趋势数据")',
+            )
+        )
+
+    def select_month_trend(self) -> None:
+        self.scroll_to_test_tag("weight_trend_card")
+        self.tap_first(
+            [
+                (AppiumBy.ID, "app.tinks.tink:id/weight_trend_month"),
+                (AppiumBy.ID, "weight_trend_month"),
+                (AppiumBy.ACCESSIBILITY_ID, "本月"),
+            ]
+        )
+
+    def select_all_trend(self) -> None:
+        self.scroll_to_test_tag("weight_trend_card")
+        self.tap_first(
+            [
+                (AppiumBy.ID, "app.tinks.tink:id/weight_trend_all"),
+                (AppiumBy.ID, "weight_trend_all"),
+                (AppiumBy.ACCESSIBILITY_ID, "全部"),
+            ]
+        )
+
+    def scroll_to_test_tag(self, tag: str) -> None:
+        locators = [
+            (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
+            (AppiumBy.ID, tag),
+        ]
+        self.scroll_weight_dashboard_to(locators)
 
     def delete_weight(self, weight_id: int) -> None:
         self.tap_first(
@@ -133,6 +228,10 @@ class WeightPage:
                 (AppiumBy.ID, tag),
             ]
         )
+
+    def _find_by_test_tag_now(self, tag: str) -> list[WebElement]:
+        elements = self.driver.find_elements(AppiumBy.ID, f"app.tinks.tink:id/{tag}")
+        return elements or self.driver.find_elements(AppiumBy.ID, tag)
 
     def find_first_present(self, locators: Iterable[tuple[str, str]]) -> WebElement:
         return self.wait.until(lambda _: self._find_first_present(locators))
