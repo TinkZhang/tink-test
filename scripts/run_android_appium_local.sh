@@ -19,6 +19,7 @@ Environment:
   TINK_ANDROID_AVD_NAME      AVD to start. Defaults to Pixel_10 or first available AVD.
   TINK_ANDROID_APK_PATH      Existing APK path. Defaults to app/build/outputs/apk/debug/app-debug.apk.
   TINK_ANDROID_EMULATOR_HEADLESS=0  Show emulator window locally.
+  TINK_ANDROID_MATCH_CI_VIEWPORT=0   Keep local emulator size instead of matching CI's 320x640 viewport.
 USAGE
 }
 
@@ -154,7 +155,25 @@ fi
 export ANDROID_SERIAL="$booted_device"
 export TINK_ANDROID_DEVICE_UDID="$booted_device"
 
+restore_viewport=0
+original_wm_size=""
+original_wm_density=""
+
 cleanup() {
+  if [ "$restore_viewport" = "1" ]; then
+    if [[ "$original_wm_size" =~ Override\ size:\ ([0-9]+x[0-9]+) ]]; then
+      adb shell wm size "${BASH_REMATCH[1]}" >/dev/null 2>&1 || true
+    else
+      adb shell wm size reset >/dev/null 2>&1 || true
+    fi
+
+    if [[ "$original_wm_density" =~ Override\ density:\ ([0-9]+) ]]; then
+      adb shell wm density "${BASH_REMATCH[1]}" >/dev/null 2>&1 || true
+    else
+      adb shell wm density reset >/dev/null 2>&1 || true
+    fi
+  fi
+
   if [ -n "$emulator_pid" ] && [ "${TINK_ANDROID_KEEP_EMULATOR:-0}" != "1" ]; then
     adb emu kill >/dev/null 2>&1 || true
   fi
@@ -175,6 +194,14 @@ adb shell wm dismiss-keyguard >/dev/null 2>&1 || true
 adb shell settings put global window_animation_scale 0 >/dev/null 2>&1 || true
 adb shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
 adb shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
+
+if [ "${TINK_ANDROID_MATCH_CI_VIEWPORT:-1}" = "1" ]; then
+  original_wm_size="$(adb shell wm size 2>/dev/null | tr -d '\r' || true)"
+  original_wm_density="$(adb shell wm density 2>/dev/null | tr -d '\r' || true)"
+  restore_viewport=1
+  adb shell wm size 320x640 >/dev/null 2>&1 || true
+  adb shell wm density 160 >/dev/null 2>&1 || true
+fi
 
 run_suite() {
   local selected_suite="$1"

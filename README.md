@@ -81,6 +81,8 @@ The local runner starts an emulator when needed, starts Appium, installs the APK
 - `reports/android/e2e/bdd-report.html`
 - `reports/android/mock/bdd-report.html`
 
+By default it temporarily sets the emulator viewport to CI's `320x640` size, then restores the previous size/density on exit. Set `TINK_ANDROID_MATCH_CI_VIEWPORT=0` if you want to keep your local emulator's current display size while debugging.
+
 Use `--build-apk` when you want the test repo script to build the local Android APK first:
 
 ```sh

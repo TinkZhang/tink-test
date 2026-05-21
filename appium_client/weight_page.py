@@ -66,11 +66,13 @@ class WeightPage:
         self.wait_for_text("体重趋势")
 
     def assert_current_weight_blank(self) -> None:
+        self._bring_weight_control_into_view()
         self.wait_for_text("体重趋势")
         values = self._decimal_text_values()
         assert not values, f"Expected current weight value to be blank, found {values}"
 
     def assert_current_weight_is(self, weight: float) -> None:
+        self._bring_weight_control_into_view()
         expected_text = f"{weight:.1f}"
         self.wait.until(
             lambda _: self._has_exact_text(expected_text)
@@ -151,6 +153,7 @@ class WeightPage:
         return self.add_current_weight()
 
     def current_weight_value(self) -> float:
+        self._bring_weight_control_into_view()
         elements = self._find_by_test_tag_now("weight_current_value")
         if not elements:
             elements = self.driver.find_elements(
@@ -206,9 +209,11 @@ class WeightPage:
         self.wait_for_text("Request failed")
 
     def assert_trend_empty(self) -> None:
+        self._scroll_until_text("暂无趋势数据")
         self.wait_for_text("暂无趋势数据")
 
     def assert_trend_has_data(self) -> None:
+        self._bring_trend_chart_into_view()
         self.wait.until(
             lambda _: not self.driver.find_elements(
                 AppiumBy.ANDROID_UIAUTOMATOR,
@@ -217,6 +222,7 @@ class WeightPage:
         )
 
     def select_month_trend(self) -> None:
+        self._bring_trend_toggle_into_view("weight_trend_month")
         self.tap_first(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/weight_trend_month"),
@@ -226,6 +232,7 @@ class WeightPage:
         )
 
     def select_all_trend(self) -> None:
+        self._bring_trend_toggle_into_view("weight_trend_all")
         self.tap_first(
             [
                 (AppiumBy.ID, "app.tinks.tink:id/weight_trend_all"),
@@ -253,11 +260,15 @@ class WeightPage:
         )
 
     def wait_for_text(self, text: str) -> WebElement:
-        return self.wait.until(
-            EC.presence_of_element_located(
-                (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{text}")')
+        try:
+            return self.wait.until(
+                EC.presence_of_element_located(
+                    (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("{text}")')
+                )
             )
-        )
+        except TimeoutException:
+            self._capture_diagnostics(f"text-missing-{self._safe_name(text)}")
+            raise
 
     def wait_for_any_text(self, texts: Iterable[str]) -> WebElement:
         def find_any(_: WebDriver) -> WebElement | bool:
@@ -362,10 +373,15 @@ class WeightPage:
 
     def tap_first(self, locators: Iterable[tuple[str, str]]) -> None:
         locator_list = list(locators)
+        element = self._find_first_present(locator_list)
+        if element:
+            element.click()
+            return
+
         last_error: Exception | None = None
         for locator in locator_list:
             try:
-                self.wait.until(EC.element_to_be_clickable(locator)).click()
+                WebDriverWait(self.driver, 3).until(EC.element_to_be_clickable(locator)).click()
                 return
             except (NoSuchElementException, TimeoutException) as exc:
                 last_error = exc
@@ -407,6 +423,62 @@ class WeightPage:
         end_y = rect["y"] + int(rect["height"] * 0.28)
         self.driver.swipe(x, start_y, x, end_y, 500)
 
+    def _swipe_page_down(self) -> None:
+        rect = self.driver.get_window_rect()
+        x = rect["x"] + rect["width"] // 2
+        start_y = rect["y"] + int(rect["height"] * 0.28)
+        end_y = rect["y"] + int(rect["height"] * 0.82)
+        self.driver.swipe(x, start_y, x, end_y, 500)
+
+    def _bring_trend_toggle_into_view(self, tag: str) -> None:
+        if self._find_by_test_tag_now(tag):
+            return
+
+        for _ in range(3):
+            self._swipe_page_down()
+            time.sleep(0.3)
+            if self._find_by_test_tag_now(tag):
+                return
+
+        for _ in range(3):
+            self._swipe_page_up()
+            time.sleep(0.3)
+            if self._find_by_test_tag_now(tag):
+                return
+
+    def _bring_trend_chart_into_view(self) -> None:
+        if self._find_by_test_tag_now("weight_trend_chart"):
+            return
+
+        for _ in range(5):
+            if self._find_by_test_tag_now("weight_trend_chart"):
+                return
+            self._swipe_page_up()
+            time.sleep(0.4)
+
+    def _scroll_until_text(self, text: str) -> None:
+        if text in self.driver.page_source:
+            return
+
+        for _ in range(6):
+            self._swipe_page_up()
+            time.sleep(0.4)
+            if text in self.driver.page_source:
+                return
+
+    def _bring_weight_control_into_view(self) -> None:
+        if self._find_by_test_tag_now("weight_current_value") or "还没有体重记录" in self.driver.page_source:
+            return
+
+        for _ in range(6):
+            self._swipe_page_down()
+            time.sleep(0.3)
+            if (
+                self._find_by_test_tag_now("weight_current_value")
+                or "还没有体重记录" in self.driver.page_source
+            ):
+                return
+
     def _parse_first_float(self, text: str) -> float:
         match = re.search(r"\d+(?:\.\d+)?", text)
         if not match:
@@ -431,6 +503,10 @@ class WeightPage:
             self.driver.save_screenshot(str(output_dir / f"{stamp}.png"))
         except Exception:
             pass
+
+    def _safe_name(self, text: str) -> str:
+        safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", text).strip("-")
+        return safe[:60] or "text"
 
     def _adb_shell(self, args: list[str]) -> None:
         command = ["adb"]
