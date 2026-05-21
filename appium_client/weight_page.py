@@ -47,6 +47,7 @@ class WeightPage:
         expected_text = f"{weight:.1f}"
         self.wait.until(
             lambda _: self._has_exact_text(expected_text)
+            or self._has_exact_content_description(f"current weight {expected_text}")
             or abs(self.current_weight_value() - weight) <= 0.05
         )
 
@@ -122,6 +123,11 @@ class WeightPage:
 
     def current_weight_value(self) -> float:
         elements = self._find_by_test_tag_now("weight_current_value")
+        if not elements:
+            elements = self.driver.find_elements(
+                AppiumBy.ANDROID_UIAUTOMATOR,
+                r'new UiSelector().descriptionMatches("current weight \\d+\\.\\d")',
+            )
         if not elements:
             values = self._decimal_text_values()
             if values:
@@ -246,6 +252,11 @@ class WeightPage:
 
     def _decimal_text_values(self) -> list[float]:
         values: list[float] = []
+        for text in re.findall(r'content-desc="current weight (\d+(?:\.\d+)?)"', self.driver.page_source):
+            try:
+                values.append(float(text))
+            except ValueError:
+                continue
         for text in re.findall(r'text="(\d+(?:\.\d+)?)"', self.driver.page_source):
             try:
                 values.append(float(text))
@@ -256,6 +267,10 @@ class WeightPage:
     def _has_exact_text(self, text: str) -> bool:
         escaped = re.escape(text)
         return re.search(rf'text="{escaped}"', self.driver.page_source) is not None
+
+    def _has_exact_content_description(self, text: str) -> bool:
+        escaped = re.escape(text)
+        return re.search(rf'content-desc="{escaped}"', self.driver.page_source) is not None
 
     def find_first_present(self, locators: Iterable[tuple[str, str]]) -> WebElement:
         return self.wait.until(lambda _: self._find_first_present(locators))
