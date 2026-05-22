@@ -1,0 +1,20 @@
+[
+  {
+    "id": 301,
+    "shop_name": "Material Barber",
+    "price": 88,
+    "created_at": "2026-05-10"
+  },
+  {
+    "id": 302,
+    "shop_name": "Tink Hair Studio",
+    "price": 66,
+    "created_at": "2026-04-20"
+  },
+  {
+    "id": 303,
+    "shop_name": "Weekend Cuts",
+    "price": 45,
+    "created_at": "2026-03-12"
+  }
+]
