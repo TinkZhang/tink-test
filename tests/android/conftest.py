@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-from appium_client import WeightPage, create_android_driver
+from appium_client import HaircutPage, WeightPage, create_android_driver
 from appium_client.step_screenshots import StepScreenshotRecorder
-from mock_server import WeightMockServer
+from mock_server import HaircutMockServer, WeightMockServer
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -57,9 +57,25 @@ def weight_page(android_driver) -> WeightPage:
 
 
 @pytest.fixture
+def haircut_page(android_driver) -> HaircutPage:
+    return HaircutPage(android_driver)
+
+
+@pytest.fixture
 def weight_mock_server() -> Generator[WeightMockServer, None, None]:
     fixture_path = Path("fixtures/android/weight/empty.json")
     server = WeightMockServer(fixture_path=fixture_path, host="0.0.0.0")
+    server.start()
+    try:
+        yield server
+    finally:
+        server.stop()
+
+
+@pytest.fixture
+def haircut_mock_server() -> Generator[HaircutMockServer, None, None]:
+    fixture_path = Path("fixtures/android/haircut/empty.json")
+    server = HaircutMockServer(fixture_path=fixture_path, host="0.0.0.0")
     server.start()
     try:
         yield server
@@ -87,10 +103,16 @@ def _capture_step_screenshot(
         weight_page = step_func_args.get("weight_page")
         driver = getattr(weight_page, "driver", None)
     if driver is None:
+        haircut_page = step_func_args.get("haircut_page")
+        driver = getattr(haircut_page, "driver", None)
+    if driver is None:
         driver = request.node.funcargs.get("android_driver")
     if driver is None:
         weight_page = request.node.funcargs.get("weight_page")
         driver = getattr(weight_page, "driver", None)
+    if driver is None:
+        haircut_page = request.node.funcargs.get("haircut_page")
+        driver = getattr(haircut_page, "driver", None)
     if driver is None:
         return
 
