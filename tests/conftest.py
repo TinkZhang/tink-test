@@ -91,6 +91,18 @@ def cleanup_times(tink_api: TinkApi) -> Generator[list[int], None, None]:
 
 
 @pytest.fixture
+def cleanup_time_labels(tink_api: TinkApi) -> Generator[list[int], None, None]:
+    label_ids: list[int] = []
+    yield label_ids
+    for label_id in reversed(label_ids):
+        response = tink_api.delete_time_label(label_id)
+        if response.status_code not in {204, 404}:
+            raise AssertionError(
+                f"Failed to clean up time label {label_id}: HTTP {response.status_code} {response.text}"
+            )
+
+
+@pytest.fixture
 def generated_weight() -> float:
     suffix = int(time.time() * 1000) % 1000
     return round(70 + (suffix / 1000), 3)

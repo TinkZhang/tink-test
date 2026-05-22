@@ -1,0 +1,32 @@
+[
+  {
+    "id": 501,
+    "type": 5,
+    "start": "{today}T09:00:00+00:00",
+    "end": "{today}T10:30:00+00:00",
+    "duration": 90,
+    "title": "Planning: Roadmap",
+    "description": "Mock working block",
+    "google_calendar_event_id": "mock-time-501"
+  },
+  {
+    "id": 502,
+    "type": 9,
+    "start": "{today}T11:00:00+00:00",
+    "end": "{today}T12:00:00+00:00",
+    "duration": 60,
+    "title": "Coding: Android Appium",
+    "description": "",
+    "google_calendar_event_id": "mock-time-502"
+  },
+  {
+    "id": 503,
+    "type": 2,
+    "start": "{today}T13:00:00+00:00",
+    "end": "{today}T13:45:00+00:00",
+    "duration": 45,
+    "title": "Reading: Material 3",
+    "description": "",
+    "google_calendar_event_id": "mock-time-503"
+  }
+]
