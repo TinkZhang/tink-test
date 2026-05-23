@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-from appium_client import WeightPage, create_android_driver
+from appium_client import MerriamPage, WeightPage, create_android_driver
 from appium_client.step_screenshots import StepScreenshotRecorder
-from mock_server import WeightMockServer
+from mock_server import MerriamMockServer, WeightMockServer
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -57,9 +57,25 @@ def weight_page(android_driver) -> WeightPage:
 
 
 @pytest.fixture
+def merriam_page(android_driver) -> MerriamPage:
+    return MerriamPage(android_driver)
+
+
+@pytest.fixture
 def weight_mock_server() -> Generator[WeightMockServer, None, None]:
     fixture_path = Path("fixtures/android/weight/empty.json")
     server = WeightMockServer(fixture_path=fixture_path, host="0.0.0.0")
+    server.start()
+    try:
+        yield server
+    finally:
+        server.stop()
+
+
+@pytest.fixture
+def merriam_mock_server() -> Generator[MerriamMockServer, None, None]:
+    fixture_path = Path("fixtures/android/merriam/progress.json")
+    server = MerriamMockServer(fixture_path=fixture_path, host="0.0.0.0")
     server.start()
     try:
         yield server
@@ -87,10 +103,16 @@ def _capture_step_screenshot(
         weight_page = step_func_args.get("weight_page")
         driver = getattr(weight_page, "driver", None)
     if driver is None:
+        merriam_page = step_func_args.get("merriam_page")
+        driver = getattr(merriam_page, "driver", None)
+    if driver is None:
         driver = request.node.funcargs.get("android_driver")
     if driver is None:
         weight_page = request.node.funcargs.get("weight_page")
         driver = getattr(weight_page, "driver", None)
+    if driver is None:
+        merriam_page = request.node.funcargs.get("merriam_page")
+        driver = getattr(merriam_page, "driver", None)
     if driver is None:
         return
 
