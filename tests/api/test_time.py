@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from pytest_bdd import given, scenario, then, when
 
 from api import TinkApi
@@ -7,6 +9,11 @@ from api import TinkApi
 
 @scenario("api/time.feature", "Create, update, list, summarize, and delete a time entry")
 def test_create_update_list_summarize_and_delete_time_entry() -> None:
+    pass
+
+
+@scenario("api/time.feature", "Create a DiaryLoom all-day time event excluded from statistics")
+def test_create_diaryloom_all_day_time_event_excluded_from_statistics() -> None:
     pass
 
 
@@ -42,6 +49,46 @@ def create_time_entry(
         cleanup_times.append(time_id)
 
 
+@when("I create a DiaryLoom all-day time entry")
+def create_diaryloom_all_day_time_entry(
+    tink_api: TinkApi,
+    scenario_state: dict,
+    cleanup_times: list[int],
+    future_time_window: tuple[str, str],
+    unique_suffix: str,
+) -> None:
+    diary_date = date.fromisoformat(future_time_window[0][:10]) + timedelta(days=7)
+    next_date = diary_date + timedelta(days=1)
+    baseline_response = tink_api.get(
+        "/time/statistics",
+        {"start_date": diary_date.isoformat(), "end_date": diary_date.isoformat()},
+    )
+    tink_api.assert_status(baseline_response, 200)
+    baseline_rows = tink_api.json(baseline_response)
+    baseline_type_1 = next((row.get("duration", 0) for row in baseline_rows if row.get("type") == 1), 0)
+
+    payload = {
+        "type": 1,
+        "start": f"{diary_date.isoformat()}T00:00:00+08:00",
+        "end": f"{next_date.isoformat()}T00:00:00+08:00",
+        "title": f"E2E DiaryLoom {unique_suffix[-8:]}",
+        "description": "Created by tink-test for DiaryLoom",
+        "all_day": True,
+        "include_in_statistics": False,
+        "source": "diaryloom",
+    }
+    response = tink_api.post("/time/", payload)
+    tink_api.assert_status(response, 200, 201)
+    created = tink_api.json(response)
+    scenario_state["created_time"] = created
+    scenario_state["expected_time"] = payload
+    scenario_state["diaryloom_baseline_type_1_duration"] = baseline_type_1
+
+    time_id = created.get("id")
+    if isinstance(time_id, int):
+        cleanup_times.append(time_id)
+
+
 @then("the time create response contains the created time entry")
 def time_response_contains_created_entry(scenario_state: dict) -> None:
     created = scenario_state["created_time"]
@@ -50,6 +97,20 @@ def time_response_contains_created_entry(scenario_state: dict) -> None:
     assert created["type"] == expected["type"]
     assert created["title"] == expected["title"]
     assert created["duration"] == 30
+    assert created.get("google_calendar_event_id")
+
+
+@then("the DiaryLoom time create response is all-day and excluded from statistics")
+def diaryloom_time_response_contains_metadata(scenario_state: dict) -> None:
+    created = scenario_state["created_time"]
+    expected = scenario_state["expected_time"]
+    assert isinstance(created.get("id"), int)
+    assert created["type"] == 1
+    assert created["title"] == expected["title"]
+    assert created["duration"] == 1440
+    assert created["all_day"] is True
+    assert created["include_in_statistics"] is False
+    assert created["source"] == "diaryloom"
     assert created.get("google_calendar_event_id")
 
 
@@ -102,6 +163,16 @@ def time_statistics_returns_type_durations(tink_api: TinkApi, scenario_state: di
     rows = tink_api.json(response)
     assert isinstance(rows, list)
     assert any(row.get("type") == 4 for row in rows)
+
+
+@then("the time statistics endpoint excludes the DiaryLoom entry")
+def time_statistics_excludes_diaryloom_entry(tink_api: TinkApi, scenario_state: dict) -> None:
+    start_date = scenario_state["expected_time"]["start"][:10]
+    response = tink_api.get("/time/statistics", {"start_date": start_date, "end_date": start_date})
+    tink_api.assert_status(response, 200)
+    rows = tink_api.json(response)
+    type_1_duration = next((row.get("duration", 0) for row in rows if row.get("type") == 1), 0)
+    assert type_1_duration == scenario_state["diaryloom_baseline_type_1_duration"]
 
 
 @when("I delete the created time entry")

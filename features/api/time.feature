@@ -11,3 +11,12 @@ Feature: Time API
     And the time statistics endpoint returns type durations
     When I delete the created time entry
     Then the time list does not include the created time entry
+
+  Scenario: Create a DiaryLoom all-day time event excluded from statistics
+    Given the Tink dev API is reachable
+    When I create a DiaryLoom all-day time entry
+    Then the DiaryLoom time create response is all-day and excluded from statistics
+    And the time list includes the created time entry
+    And the time statistics endpoint excludes the DiaryLoom entry
+    When I delete the created time entry
+    Then the time list does not include the created time entry
