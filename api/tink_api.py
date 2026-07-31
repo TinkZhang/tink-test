@@ -38,6 +38,12 @@ class TinkApi:
     def delete_weight(self, weight_id: int) -> requests.Response:
         return self.delete(f"/weight/{weight_id}")
 
+    def create_time_label(self, type_id: int, name: str) -> requests.Response:
+        return self.post("/time/labels", {"type": type_id, "name": name})
+
+    def delete_time_label(self, label_id: int) -> requests.Response:
+        return self.delete(f"/time/labels/{label_id}")
+
     def get_root(self) -> requests.Response:
         if self.base_url.endswith("/dev"):
             root_url = self.base_url.removesuffix("/dev")
