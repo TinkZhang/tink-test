@@ -196,7 +196,9 @@ jobs:
     needs:
       - api
       - android-appium
-    if: always()
+    if: >-
+      always() &&
+      github.event_name == 'repository_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -247,8 +249,7 @@ jobs:
         if: >-
           always() &&
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-          github.event_name == 'repository_dispatch' ||
-          github.event_name == 'workflow_dispatch')
+          github.event_name == 'repository_dispatch')
         uses: actions/upload-pages-artifact@v3
         with:
           path: reports
@@ -257,8 +258,7 @@ jobs:
         if: >-
           always() &&
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-          github.event_name == 'repository_dispatch' ||
-          github.event_name == 'workflow_dispatch')
+          github.event_name == 'repository_dispatch')
         continue-on-error: true
         uses: actions/deploy-pages@v4
       - name: Fail if upstream tests failed
