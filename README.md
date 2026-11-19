@@ -95,14 +95,11 @@ To iterate on one scenario, pass pytest arguments after `--`:
 scripts/run_android_appium_local.sh --suite e2e -- -k "add_and_delete"
 ```
 
-`Tink-Super-App` owns APK builds in CI and dispatches this repository with the Android workflow run id. GitHub Actions downloads the published `tink-android-debug-apk` artifact, runs Appium with the UiAutomator2 driver on an Android emulator, uploads artifacts, and publishes API/Android report links to GitHub Pages.
+`Tink-Super-App` builds the release candidate APK, checks out a specific revision of this repository, and runs both Appium suites against the APK. The Android release includes the test reports. Pushes to this repository's `main` run the API suite. Use the E2E workflow's manual dispatch with an Android release workflow run ID for a standalone Appium run.
 
 During Appium runs, every Appium-backed BDD step captures a screenshot. The generated Android BDD HTML report embeds those screenshots directly under an `Android Step Screenshots` section so the executed flow can be reviewed without downloading a separate artifact.
 
-Required GitHub secrets:
-
-- `Tink-Super-App`: `TINK_TEST_DISPATCH_TOKEN` can dispatch events to `TinkZhang/tink-test`.
-- `tink-test`: `TINK_ANDROID_ARTIFACT_TOKEN` can read Android workflow artifacts from `TinkZhang/Tink-Super-App`.
+Standalone Appium runs use `TINK_ANDROID_ARTIFACT_TOKEN` to read Android workflow artifacts from `TinkZhang/Tink-Super-App`.
 
 ## Structure
 
