@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from datetime import date
-
 from pytest_bdd import given, scenario, then, when
 
 from api import TinkApi
 
 
-@scenario("api/book.feature", "Create, update, move, archive, note, and delete a book")
-def test_create_update_move_archive_note_and_delete_book() -> None:
+@scenario("api/book.feature", "Create, update, read, finish, annotate, and delete a book")
+def test_create_update_read_finish_annotate_and_delete_book() -> None:
     pass
 
 
@@ -122,18 +120,17 @@ def can_read_and_update_created_note(tink_api: TinkApi, scenario_state: dict) ->
     assert any(row.get("id") == note["id"] for row in rows)
 
 
-@when("I archive the created book")
-def archive_created_book(tink_api: TinkApi, scenario_state: dict) -> None:
+@when("I mark the created book as done")
+def mark_created_book_done(tink_api: TinkApi, scenario_state: dict) -> None:
     created = scenario_state["created_book"]
-    payload = {"status": "done", "archived_date": date.today().isoformat()}
-    response = tink_api.post(f"/book/{created['id']}/archive", payload)
+    response = tink_api.post(f"/book/{created['id']}/done", {})
     tink_api.assert_status(response, 200)
-    scenario_state["archived_book"] = tink_api.json(response)
+    assert tink_api.json(response)["state"] == "done"
 
 
-@then("the archive list contains the created book")
-def archive_list_contains_created_book(tink_api: TinkApi, scenario_state: dict) -> None:
-    response = tink_api.get("/book/archived", {"page": 0, "size": 50, "status": "done"})
+@then("the done list contains the created book")
+def done_list_contains_created_book(tink_api: TinkApi, scenario_state: dict) -> None:
+    response = tink_api.get("/book/done", {"page": 0, "size": 50})
     tink_api.assert_status(response, 200)
     rows = tink_api.json(response)
     created = scenario_state["created_book"]
