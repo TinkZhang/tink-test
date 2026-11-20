@@ -129,7 +129,8 @@ def clear_hub(android_driver):
     page = WeightPage(android_driver)
     page.find_by_test_tag("connect_delete_all").click()
     page.wait_for_text("Delete all content?")
-    page.find_by_test_tag("connect_confirm_clear").click()
+    # The confirmation is a separate Compose window without the activity's test-tag semantics.
+    page.wait_for_text("Delete all").click()
 
 
 @then("Connect shows an empty hub")

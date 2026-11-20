@@ -254,13 +254,20 @@ class WeightPage:
 
     def delete_weight(self, weight_id: int) -> None:
         tag = f"weight_delete_button_{weight_id}"
-        self.tap_first(
-            [
-                (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
-                (AppiumBy.ID, tag),
-                (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().resourceId("{tag}")'),
-            ]
-        )
+        locators = [
+            (AppiumBy.ID, f"app.tinks.tink:id/{tag}"),
+            (AppiumBy.ID, tag),
+            (AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().resourceId("{tag}")'),
+        ]
+        if not self._find_first_present(locators):
+            history = self.find_by_test_tag("weight_history_list")
+            # A newly fetched row can be inserted just above the anchored first visible item.
+            self.driver.execute_script("mobile: scrollGesture", {
+                "elementId": history.id,
+                "direction": "up",
+                "percent": 0.9,
+            })
+        self.tap_first(locators)
 
     def wait_for_text(self, text: str) -> WebElement:
         try:
