@@ -20,9 +20,9 @@ class WeightPage:
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout)
 
-    def open_weight_from_drawer(self) -> None:
+    def launch_app(self, api_base_url: str | None = None) -> None:
         self._adb_shell(["am", "force-stop", "app.tinks.tink"])
-        if os.environ.get("TINK_ANDROID_API_BASE_URL_OVERRIDE"):
+        if api_base_url:
             self._adb_shell(
                 [
                     "am",
@@ -33,7 +33,7 @@ class WeightPage:
                     "app.tinks.tink.debug.SET_API_BASE_URL",
                     "--es",
                     "base_url",
-                    os.environ["TINK_ANDROID_API_BASE_URL_OVERRIDE"],
+                    api_base_url,
                 ]
             )
         self._adb_shell(
@@ -49,6 +49,9 @@ class WeightPage:
                 "android.intent.category.LAUNCHER",
             ]
         )
+
+    def open_weight_from_drawer(self) -> None:
+        self.launch_app(os.environ.get("TINK_ANDROID_API_BASE_URL_OVERRIDE"))
         menu_button_locators = [
             (AppiumBy.ID, "app.tinks.tink:id/top_bar_menu_button"),
             (AppiumBy.ID, "top_bar_menu_button"),

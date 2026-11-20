@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
@@ -91,26 +89,33 @@ def configure_dev_hub(tink_api, connect_destination):
 
 @when("I open Connect in the Android drawer")
 def open_connect(android_driver, connect_destination):
-    package = "app.tinks.tink"
-    command = ["adb"]
-    if serial := os.environ.get("ANDROID_SERIAL"):
-        command += ["-s", serial]
-    subprocess.run([*command, "shell", "am", "force-stop", package], check=True, capture_output=True)
-    subprocess.run([
-        *command, "shell", "am", "broadcast",
-        "-n", f"{package}/.debug.ApiBaseUrlOverrideReceiver",
-        "-a", f"{package}.debug.SET_API_BASE_URL",
-        "--es", "base_url", connect_destination["url"],
-    ], check=True, capture_output=True)
-    android_driver.activate_app(package)
     page = WeightPage(android_driver)
-    menu = [(AppiumBy.ID, "top_bar_menu_button"), (AppiumBy.ACCESSIBILITY_ID, "打开抽屉")]
-    page.return_to_top_level_if_needed(menu)
-    page.tap_first(menu)
-    android_driver.find_element(
-        AppiumBy.ANDROID_UIAUTOMATOR,
-        'new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().text("Connect"))',
-    ).click()
+    page.launch_app(connect_destination["url"])
+    page.tap_first([
+        (AppiumBy.ID, "app.tinks.tink:id/top_bar_menu_button"),
+        (AppiumBy.ID, "top_bar_menu_button"),
+        (AppiumBy.ACCESSIBILITY_ID, "打开抽屉"),
+    ])
+    page.find_by_test_tag("drawer_destination_home")
+
+    viewport = android_driver.get_window_size()
+    locator = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceIdMatches(".*drawer_destination_connect$")')
+    for _ in range(5):
+        buttons = android_driver.find_elements(*locator)
+        visible = next((button for button in buttons if button.is_displayed()), None)
+        if visible is not None:
+            visible.click()
+            break
+        android_driver.execute_script("mobile: scrollGesture", {
+            "left": 12,
+            "top": 40,
+            "width": int(viewport["width"] * 0.6),
+            "height": viewport["height"] - 100,
+            "direction": "down",
+            "percent": 0.9,
+        })
+    else:
+        page.find_by_test_tag("drawer_destination_connect").click()
     page.find_by_test_tag("connect_hub")
 
 
