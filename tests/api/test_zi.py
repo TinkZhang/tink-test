@@ -43,3 +43,28 @@ def zi_list_includes_upserted_characters(tink_api: TinkApi, scenario_state: dict
     rows = tink_api.json(response)
     listed = {row["zi"] for row in rows}
     assert set(scenario_state["zi_chars"]).issubset(listed)
+
+
+@scenario("api/zi.feature", "Written characters can be listed and invalid input is rejected")
+def test_list_written_zi_and_reject_invalid_record() -> None:
+    pass
+
+
+@when("I list the written zi records")
+def list_written_zi(tink_api: TinkApi, scenario_state: dict) -> None:
+    response = tink_api.get("/zi/written")
+    tink_api.assert_status(response, 200)
+    scenario_state["written_zis"] = tink_api.json(response)
+
+
+@then("the written zi list contains distinct single characters")
+def written_zi_list_has_distinct_characters(scenario_state: dict) -> None:
+    rows = scenario_state["written_zis"]
+    assert isinstance(rows, list)
+    assert all(isinstance(char, str) and len(char) == 1 for char in rows)
+    assert rows == sorted(set(rows))
+
+
+@then("an invalid written zi record is rejected")
+def invalid_written_zi_is_rejected(tink_api: TinkApi) -> None:
+    tink_api.assert_status(tink_api.put("/zi/written", {"zi": "AB"}), 422)
