@@ -80,7 +80,7 @@ def open_zi(android_driver, zi_destination):
         (AppiumBy.ID, "top_bar_menu_button"),
         (AppiumBy.ACCESSIBILITY_ID, "打开抽屉"),
     ])
-    page.find_by_test_tag("drawer_destination_zi").click()
+    page.tap_drawer_destination("drawer_destination_zi")
     page.find_by_test_tag("zi_dashboard")
 
 

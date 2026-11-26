@@ -63,10 +63,29 @@ class WeightPage:
             [
                 (AppiumBy.ID, "app.tinks.tink:id/drawer_destination_weight"),
                 (AppiumBy.ID, "drawer_destination_weight"),
-                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("体重 C")'),
+                (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().text("体重")'),
             ]
         )
         self.wait_for_text("体重趋势")
+
+    def tap_drawer_destination(self, tag: str) -> None:
+        self.find_by_test_tag("drawer_destination_home")
+        viewport = self.driver.get_window_size()
+        for _ in range(5):
+            visible = next((item for item in self._find_by_test_tag_now(tag) if item.is_displayed()), None)
+            if visible is not None:
+                visible.click()
+                return
+
+            self.driver.execute_script("mobile: scrollGesture", {
+                "left": 12,
+                "top": 40,
+                "width": int(viewport["width"] * 0.6),
+                "height": viewport["height"] - 100,
+                "direction": "down",
+                "percent": 0.9,
+            })
+        self.find_by_test_tag(tag).click()
 
     def assert_current_weight_blank(self) -> None:
         self._bring_weight_control_into_view()

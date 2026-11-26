@@ -96,26 +96,7 @@ def open_connect(android_driver, connect_destination):
         (AppiumBy.ID, "top_bar_menu_button"),
         (AppiumBy.ACCESSIBILITY_ID, "打开抽屉"),
     ])
-    page.find_by_test_tag("drawer_destination_home")
-
-    viewport = android_driver.get_window_size()
-    locator = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().resourceIdMatches(".*drawer_destination_connect$")')
-    for _ in range(5):
-        buttons = android_driver.find_elements(*locator)
-        visible = next((button for button in buttons if button.is_displayed()), None)
-        if visible is not None:
-            visible.click()
-            break
-        android_driver.execute_script("mobile: scrollGesture", {
-            "left": 12,
-            "top": 40,
-            "width": int(viewport["width"] * 0.6),
-            "height": viewport["height"] - 100,
-            "direction": "down",
-            "percent": 0.9,
-        })
-    else:
-        page.find_by_test_tag("drawer_destination_connect").click()
+    page.tap_drawer_destination("drawer_destination_connect")
     page.find_by_test_tag("connect_hub")
 
 
